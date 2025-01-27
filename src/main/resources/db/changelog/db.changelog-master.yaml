@@ -1,0 +1,74 @@
+databaseChangeLog:
+  - changeSet:
+      id: init-datasources-table
+      author: ilya
+      changes:
+        - createTable:
+            tableName: datasources
+            columns:
+              - column:
+                  name: id
+                  type: BIGSERIAL
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: active
+                  type: BOOLEAN
+                  constraints:
+                    nullable: false
+              - column:
+                  name: symbol
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: exchange
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: true
+              - column:
+                  name: type
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: true
+              - column:
+                  name: exchange_port_alias
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: exchange_port_type
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: true
+              - column:
+                  name: exchange_port_exchange
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: true
+              - column:
+                  name: alias
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: pips_size
+                  type: DOUBLE PRECISION
+                  constraints:
+                    nullable: false
+              - column:
+                  name: size_multiplier
+                  type: DOUBLE PRECISION
+                  constraints:
+                    nullable: false
+              - column:
+                  name: price_multiplier
+                  type: DOUBLE PRECISION
+                  constraints:
+                    nullable: false
+              - column:
+                  name: commission_fee
+                  type: DOUBLE PRECISION
+                  constraints:
+                    nullable: false
