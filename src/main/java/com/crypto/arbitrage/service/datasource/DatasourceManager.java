@@ -57,10 +57,10 @@ public class DatasourceManager implements ApplicationContextAware {
     }
 
     private void initCache(DatasourceInfo dataSourceInfo) {
-        DataSourceLocal dataSource = applicationContext.getBean(DataSourceLocal.class);
+        DataSourceLocal dataSourceLocal = applicationContext.getBean(DataSourceLocal.class);
         Layer1ApiProvider provider = getProvider(dataSourceInfo.getExchange());
-        dataSource.setProvider(provider);
-        dataSourceLocalCache.put(dataSourceInfo.getAlias(), dataSource);
+        dataSourceLocal.setProvider(provider);
+        dataSourceLocalCache.put(dataSourceInfo.getAlias(), dataSourceLocal);
     }
 
     public void registerDatasource(DatasourceInfo instrumentInfo) {

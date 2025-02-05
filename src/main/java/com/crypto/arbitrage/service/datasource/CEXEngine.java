@@ -141,7 +141,7 @@ public class CEXEngine  implements Layer1ApiDataListener, Layer1ApiInstrumentLis
 
     @Override
     public void onInstrumentRemoved(String s) {
-
+        aliasToInstrumentInfo.remove(s);
     }
 
     @Override
