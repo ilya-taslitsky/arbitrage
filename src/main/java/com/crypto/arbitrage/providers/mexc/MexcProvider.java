@@ -1,22 +1,37 @@
 package com.crypto.arbitrage.providers.mexc;
 
-import org.springframework.stereotype.Component;
-import velox.api.layer0.annotations.Layer0LiveModule;
-import velox.api.layer0.live.ExternalLiveBaseProvider;
-import velox.api.layer1.annotations.Layer1ApiVersion;
-import velox.api.layer1.annotations.Layer1ApiVersionValue;
+import lombok.extern.slf4j.Slf4j;
+import lombok.RequiredArgsConstructor;
 import velox.api.layer1.data.LoginData;
+import velox.api.layer1.data.SubscribeInfo;
+import org.springframework.stereotype.Component;
 import velox.api.layer1.data.OrderSendParameters;
 import velox.api.layer1.data.OrderUpdateParameters;
-import velox.api.layer1.data.SubscribeInfo;
+import velox.api.layer0.annotations.Layer0LiveModule;
+import velox.api.layer1.annotations.Layer1ApiVersion;
+import velox.api.layer0.live.ExternalLiveBaseProvider;
+import velox.api.layer1.annotations.Layer1ApiVersionValue;
+import com.crypto.arbitrage.providers.mexc.model.MexcLoginData;
+import com.crypto.arbitrage.providers.mexc.websocket.MexcWebSocketManager;
 
+@Slf4j
+@Component
+@RequiredArgsConstructor
 @Layer1ApiVersion(Layer1ApiVersionValue.VERSION2)
 @Layer0LiveModule(shortName = "MEXC", fullName = "MEXC-Provider")
-@Component
 public class MexcProvider extends ExternalLiveBaseProvider {
+
+    private final MexcWebSocketManager mexcWebSocketManager;
+
     @Override
     public void login(LoginData loginData) {
-
+        if (isLoginDataValid(loginData)) {
+            mexcWebSocketManager.setLoginData((MexcLoginData) loginData);
+            mexcWebSocketManager.openWebSocket();
+        } else {
+            log.error("LoginData must be of type MexcLoginData " +
+                    "and have apiKey and apiSecret set.");
+        }
     }
 
     @Override
@@ -53,5 +68,11 @@ public class MexcProvider extends ExternalLiveBaseProvider {
     @Override
     public void updateOrder(OrderUpdateParameters orderUpdateParameters) {
 
+    }
+
+    private boolean isLoginDataValid(LoginData loginData) {
+        return loginData instanceof MexcLoginData mexcLoginData &&
+                mexcLoginData.getApiKey() != null &&
+                mexcLoginData.getApiSecret() != null;
     }
 }
