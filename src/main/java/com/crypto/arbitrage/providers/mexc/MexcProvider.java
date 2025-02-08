@@ -70,9 +70,23 @@ public class MexcProvider extends ExternalLiveBaseProvider {
 
     }
 
+
     private boolean isLoginDataValid(LoginData loginData) {
         return loginData instanceof MexcLoginData mexcLoginData &&
                 mexcLoginData.getApiKey() != null &&
                 mexcLoginData.getApiSecret() != null;
     }
+
+//    void onMessage(String message) {
+//        if (message.contains("tradeData")) {
+//            // MexcTradeData tradeData = (MexcTradedata) message;
+//            MexTradeData tradeData;
+//            boolean isBid = tradeData.getSide().equals("buy");
+//            dataListeners.forEach(dataListener -> dataListener.onTrade(tradeData.getSymbolName(), );
+//        } else if (message.contains("depthData")) {
+//            dataListeners.forEach(dataListener -> dataListener.onDepth());
+//        } else if (message.contains("authSuccessful")) {
+//            isLogin.set(true);
+//        }
+
 }
