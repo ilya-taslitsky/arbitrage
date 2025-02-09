@@ -2,6 +2,7 @@ package com.crypto.arbitrage.providers.mexc;
 
 import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
+import org.springframework.lang.NonNull;
 import velox.api.layer1.data.LoginData;
 import velox.api.layer1.data.SubscribeInfo;
 import org.springframework.stereotype.Component;
@@ -24,7 +25,7 @@ public class MexcProvider extends ExternalLiveBaseProvider {
     private final MexcWebSocketManager mexcWebSocketManager;
 
     @Override
-    public void login(LoginData loginData) {
+    public void login(@NonNull LoginData loginData) {
         if (isLoginDataValid(loginData)) {
             mexcWebSocketManager.setLoginData((MexcLoginData) loginData);
             mexcWebSocketManager.openWebSocket();
@@ -36,42 +37,48 @@ public class MexcProvider extends ExternalLiveBaseProvider {
 
     @Override
     public String getSource() {
-        return null;
+        return "Mexc provider";
     }
 
     @Override
     public void close() {
-
+        mexcWebSocketManager.closeWebSocket();
     }
 
     @Override
-    public String formatPrice(String s, double v) {
+    public String formatPrice(@NonNull String s, double v) {
+        // TODO
+        log.info("formatPrice: {}, {}", s, v);
         return null;
     }
 
     @Override
-    public void subscribe(SubscribeInfo subscribeInfo) {
-        // get ws client
-        // ws.subsribe(symbol);
+    public void subscribe(@NonNull SubscribeInfo subscribeInfo) {
+        if (subscribeInfo.symbol == null) {
+            log.error("SubscribeInfo symbol is null.");
+            return;
+        }
+        mexcWebSocketManager.subscribeToTopic(subscribeInfo.symbol);
     }
 
     @Override
-    public void unsubscribe(String s) {
-
+    public void unsubscribe(@NonNull String symbol) {
+        mexcWebSocketManager.unsubscribeFromTopic(symbol);
     }
 
     @Override
-    public void sendOrder(OrderSendParameters orderSendParameters) {
-
+    public void sendOrder(@NonNull OrderSendParameters orderSendParameters) {
+        // TODO
+        log.info("OrderSendParameters: {}", orderSendParameters);
     }
 
     @Override
-    public void updateOrder(OrderUpdateParameters orderUpdateParameters) {
-
+    public void updateOrder(@NonNull OrderUpdateParameters orderUpdateParameters) {
+        // TODO
+        log.info("OrderUpdateParameters: {}", orderUpdateParameters);
     }
 
-
-    private boolean isLoginDataValid(LoginData loginData) {
+    private boolean isLoginDataValid(@NonNull LoginData loginData) {
         return loginData instanceof MexcLoginData mexcLoginData &&
                 mexcLoginData.getApiKey() != null &&
                 mexcLoginData.getApiSecret() != null;

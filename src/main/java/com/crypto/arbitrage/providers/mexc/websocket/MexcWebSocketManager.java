@@ -14,7 +14,10 @@ public class MexcWebSocketManager {
     @Setter
     private MexcLoginData loginData;
     private final String baseWebsocketUrl;
+    private static final  String BOOK_DEPTH = "5";
+    private static final String DEALS_TOPIC = "spot@public.deals.v3.api@%s";
     private static final String USER_ACCOUNT_UPDATE_TOPIC = "spot@private.account.v3.api";
+    private static final String PARTIAL_DEPTH_TOPIC = "spot@public.limit.depth.v3.api@%s@%s";
 
     private final MexcWebSocketClient mexcWebSocketClient;
     private final MexcWebSocketStateService webSocketStateService;
@@ -56,16 +59,33 @@ public class MexcWebSocketManager {
         webSocketStateService.subscribeToChannel(USER_ACCOUNT_UPDATE_TOPIC);
     }
 
-    public void subscribeToTopic(@NonNull String topic) {
+    public void subscribeToTopic(@NonNull String symbol) {
         if(!mexcWebSocketClient.isSessionOpen()) {
-            throw new RuntimeException("WebSocket is not open");
+            log.error("SubscribeToTopic: WebSocket is not open");
+            return;
         }
-        webSocketStateService.subscribeToChannel(topic);
+        String dealsTopic = String.format(DEALS_TOPIC, symbol);
+        String partialDepthTopic = String.format(PARTIAL_DEPTH_TOPIC, symbol, BOOK_DEPTH);
+        webSocketStateService.subscribeToChannel(dealsTopic);
+        webSocketStateService.subscribeToChannel(partialDepthTopic);
+    }
+
+    public void unsubscribeFromTopic(@NonNull String symbol) {
+        if(!mexcWebSocketClient.isSessionOpen()) {
+            log.error("UnsubscribeFromTopic: WebSocket is not open");
+            return;
+        }
+        String dealsTopic = String.format(DEALS_TOPIC, symbol);
+        String partialDepthTopic = String.format(PARTIAL_DEPTH_TOPIC, symbol, BOOK_DEPTH);
+        webSocketStateService.unsubscribeFromChannel(dealsTopic);
+        webSocketStateService.unsubscribeFromChannel(partialDepthTopic);
     }
 
     public void closeWebSocket() {
         if (mexcWebSocketClient.isSessionOpen()) {
             mexcWebSocketClient.disconnect();
+        }else {
+            log.info("WebSocket is already closed.");
         }
     }
 }

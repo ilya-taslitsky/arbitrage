@@ -43,6 +43,7 @@ public class MexcWebSocketStateService {
     private static final String USER_DATA_STREAM_URL = "/api/v3/userDataStream?";
     private static final String CONTENT_TYPE_APPLICATION_JSON = "application/json";
     private static final String SUBSCRIPTION_TEMPLATE = "{\"method\":\"SUBSCRIPTION\",\"params\":[\"%s\"]}";
+    private static final String UNSUBSCRIPTION_TEMPLATE = "{\"method\":\"UNSUBSCRIPTION\",\"params\":[\"%s\"]}";
 
     private final String apiUrl;
     @Setter
@@ -247,6 +248,21 @@ public class MexcWebSocketStateService {
             }
         } else {
             log.warn("Cannot subscribe, session is not open.");
+        }
+    }
+
+    public void unsubscribeFromChannel(@NonNull String channel) {
+        Session session = sessionRef.get();
+        if (session != null && session.isOpen()) {
+            String message = String.format(UNSUBSCRIPTION_TEMPLATE, channel);
+            try {
+                session.getBasicRemote().sendText(message);
+                log.info("Sent unsubscribe message to MexcWebSocket: {}", message);
+            } catch (IOException e) {
+                log.error("Error sending unsubscribe message to MexcWebSocket: {}", e.getMessage());
+            }
+        } else {
+            log.warn("Cannot unsubscribe, session is not open.");
         }
     }
 
