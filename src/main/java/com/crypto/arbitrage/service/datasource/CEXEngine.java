@@ -39,7 +39,8 @@ public class CEXEngine  implements Layer1ApiDataListener, Layer1ApiInstrumentLis
     private Map<String, InstrumentInfo> aliasToInstrumentInfo;
 
 
-    public void initialize(DatasourceInfo dataSourceInfo, Map<String, InstrumentInfo> aliasToInstrumentInfo) {
+    public void initialize(DatasourceInfo dataSourceInfo,
+                           Map<String, InstrumentInfo> aliasToInstrumentInfo) {
         this.datasourceInfo = dataSourceInfo;
         this.aliasToInstrumentInfo = aliasToInstrumentInfo;
         this.alias = datasourceInfo.getSymbol() ;

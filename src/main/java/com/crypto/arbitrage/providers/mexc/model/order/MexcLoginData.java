@@ -1,4 +1,4 @@
-package com.crypto.arbitrage.providers.mexc.model;
+package com.crypto.arbitrage.providers.mexc.model.order;
 
 import lombok.Getter;
 import lombok.Setter;
