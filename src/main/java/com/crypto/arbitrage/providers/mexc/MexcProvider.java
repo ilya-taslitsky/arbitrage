@@ -1,19 +1,27 @@
 package com.crypto.arbitrage.providers.mexc;
 
-import lombok.extern.slf4j.Slf4j;
+
+import com.crypto.arbitrage.providers.mexc.config.MexcConfig;
+import com.crypto.arbitrage.providers.mexc.model.order.MexcLoginData;
+import com.crypto.arbitrage.providers.mexc.model.order.NewOrderReq;
+import com.crypto.arbitrage.providers.mexc.service.MexcOrderService;
+import com.crypto.arbitrage.providers.mexc.websocket.MexcWebSocketManager;
+import com.crypto.arbitrage.providers.mexc.websocket.WebSocketSessionStatusEvent;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.event.EventListener;
 import org.springframework.lang.NonNull;
-import velox.api.layer1.data.LoginData;
-import velox.api.layer1.data.SubscribeInfo;
 import org.springframework.stereotype.Component;
+import velox.api.layer0.annotations.Layer0LiveModule;
+import velox.api.layer0.live.ExternalLiveBaseProvider;
+import velox.api.layer1.annotations.Layer1ApiVersion;
+import velox.api.layer1.annotations.Layer1ApiVersionValue;
+import velox.api.layer1.data.LoginData;
 import velox.api.layer1.data.OrderSendParameters;
 import velox.api.layer1.data.OrderUpdateParameters;
-import velox.api.layer0.annotations.Layer0LiveModule;
-import velox.api.layer1.annotations.Layer1ApiVersion;
-import velox.api.layer0.live.ExternalLiveBaseProvider;
-import velox.api.layer1.annotations.Layer1ApiVersionValue;
-import com.crypto.arbitrage.providers.mexc.model.MexcLoginData;
-import com.crypto.arbitrage.providers.mexc.websocket.MexcWebSocketManager;
+import velox.api.layer1.data.SubscribeInfo;
+
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 @Component
@@ -22,12 +30,25 @@ import com.crypto.arbitrage.providers.mexc.websocket.MexcWebSocketManager;
 @Layer0LiveModule(shortName = "MEXC", fullName = "MEXC-Provider")
 public class MexcProvider extends ExternalLiveBaseProvider {
 
+    private final static String MEXC_WEB_SOCKET_SESSION_ALREADY_ACTIVE =
+            "MexcWebSocket session is already active.";
+    private final static String MEXC_WEB_SOCKET_SESSION_NOT_ACTIVE =
+            "MexcWebSocket session is not active.";
+
+    private final AtomicBoolean isSessionActive = new AtomicBoolean(false);
+
+    private final MexcConfig mexcConfig;
+    private final MexcOrderService mexcOrderService;
     private final MexcWebSocketManager mexcWebSocketManager;
 
     @Override
     public void login(@NonNull LoginData loginData) {
+        if (isSessionActive.get()) {
+            log.error(MEXC_WEB_SOCKET_SESSION_ALREADY_ACTIVE);
+            return;
+        }
         if (isLoginDataValid(loginData)) {
-            mexcWebSocketManager.setLoginData((MexcLoginData) loginData);
+            mexcConfig.setLoginData((MexcLoginData) loginData);
             mexcWebSocketManager.openWebSocket();
         } else {
             log.error("LoginData must be of type MexcLoginData " +
@@ -48,12 +69,17 @@ public class MexcProvider extends ExternalLiveBaseProvider {
     @Override
     public String formatPrice(@NonNull String s, double v) {
         // TODO
+        // What i have to do here?
         log.info("formatPrice: {}, {}", s, v);
         return null;
     }
 
     @Override
     public void subscribe(@NonNull SubscribeInfo subscribeInfo) {
+        if (!isSessionActive.get()) {
+            log.error(MEXC_WEB_SOCKET_SESSION_NOT_ACTIVE);
+            return;
+        }
         if (subscribeInfo.symbol == null) {
             log.error("SubscribeInfo symbol is null.");
             return;
@@ -68,14 +94,23 @@ public class MexcProvider extends ExternalLiveBaseProvider {
 
     @Override
     public void sendOrder(@NonNull OrderSendParameters orderSendParameters) {
-        // TODO
-        log.info("OrderSendParameters: {}", orderSendParameters);
+        if (orderSendParameters instanceof NewOrderReq newOrderReq) {
+            mexcOrderService.sendOrder(newOrderReq);
+            log.info("OrderSendParameters: {}", orderSendParameters);
+        } else {
+            log.error("OrderSendParameters must be of type NewOrderReq.");
+        }
     }
 
     @Override
     public void updateOrder(@NonNull OrderUpdateParameters orderUpdateParameters) {
-        // TODO
-        log.info("OrderUpdateParameters: {}", orderUpdateParameters);
+        log.info("Not implemented.");
+    }
+
+    @EventListener
+    public void onWebSocketSessionStatusEvent(WebSocketSessionStatusEvent event) {
+        isSessionActive.set(event.isActive());
+        log.info("WebSocket session is now {}", event.isActive() ? "active" : "inactive");
     }
 
     private boolean isLoginDataValid(@NonNull LoginData loginData) {
@@ -95,5 +130,4 @@ public class MexcProvider extends ExternalLiveBaseProvider {
 //        } else if (message.contains("authSuccessful")) {
 //            isLogin.set(true);
 //        }
-
 }

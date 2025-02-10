@@ -13,7 +13,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.web.client.RestClient;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
-import com.crypto.arbitrage.providers.mexc.model.MexcLoginData;
+import com.crypto.arbitrage.providers.mexc.model.order.MexcLoginData;
 import com.crypto.arbitrage.providers.mexc.common.SignatureUtil;
 
 import java.util.Map;

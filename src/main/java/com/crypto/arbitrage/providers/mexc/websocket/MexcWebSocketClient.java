@@ -4,6 +4,7 @@ import lombok.Setter;
 import jakarta.websocket.*;
 import lombok.extern.slf4j.Slf4j;
 import jakarta.annotation.PreDestroy;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,29 +24,39 @@ public class MexcWebSocketClient {
 
     private Session session;
     private final MexcWebSocketStateService mexcWebSocketStateService;
+    private final ApplicationEventPublisher publisher;
 
     @Autowired
     public MexcWebSocketClient(@Value("${mexc.api.websocketBaseUrl}") String baseUrl,
-                               @Lazy MexcWebSocketStateService mexcWebSocketStateService) {
+                               @Lazy MexcWebSocketStateService mexcWebSocketStateService,
+                               ApplicationEventPublisher publisher) {
         this.webSocketUrlWithListenKey = baseUrl;
         this.mexcWebSocketStateService = mexcWebSocketStateService;
+        this.publisher = publisher;
     }
 
 
-    public void connect() throws URISyntaxException, DeploymentException, IOException {
+    public void connect() {
         log.info("Connecting to MexcWebSocket at: {}", webSocketUrlWithListenKey);
         if (isSessionOpen()) {
             log.warn("User MexcWebSocket session is already open.");
             return;
         }
         WebSocketContainer container = ContainerProvider.getWebSocketContainer();
-        session = container.connectToServer(this, new URI(webSocketUrlWithListenKey));
+        try {
+            session = container.connectToServer(this, new URI(webSocketUrlWithListenKey));
+            publisher.publishEvent(new WebSocketSessionStatusEvent(true));
+        } catch (DeploymentException | IOException | URISyntaxException e) {
+            publisher.publishEvent(new WebSocketSessionStatusEvent(false));
+            throw new RuntimeException(e);
+        }
     }
 
     public void disconnect() {
         if (isSessionOpen()) {
             closeSession(new CloseReason(CloseReason.CloseCodes.NORMAL_CLOSURE,
                     "Application shutdown"));
+            publisher.publishEvent(new WebSocketSessionStatusEvent(false));
         }
     }
 
@@ -56,6 +67,7 @@ public class MexcWebSocketClient {
     @OnOpen
     public void onOpen(Session session) {
         this.session = session;
+        publisher.publishEvent(new WebSocketSessionStatusEvent(true));
         mexcWebSocketStateService.onOpen(session);
     }
 
@@ -75,6 +87,7 @@ public class MexcWebSocketClient {
                     closeReason.getCloseCode(),
                     e.getMessage());
         }
+        publisher.publishEvent(new WebSocketSessionStatusEvent(false));
         mexcWebSocketStateService.onClose(closeReason);
     }
 
@@ -89,6 +102,7 @@ public class MexcWebSocketClient {
                     e.getMessage());
         }
         log.error("MexcWebSocket error: {}", thr.getMessage());
+        publisher.publishEvent(new WebSocketSessionStatusEvent(false));
         mexcWebSocketStateService.onError(thr);
     }
 
@@ -103,6 +117,7 @@ public class MexcWebSocketClient {
     private void closeSession(CloseReason closeReason) {
         try {
             session.close(closeReason);
+            publisher.publishEvent(new WebSocketSessionStatusEvent(false));
         } catch (IOException e) {
             log.error("Error on closing MexcWebSocket session: reason {} : exception {}",
                     closeReason.getCloseCode(),
