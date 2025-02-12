@@ -1,35 +1,34 @@
 package com.crypto.arbitrage.providers.mexc.websocket;
 
-import lombok.Getter;
-import lombok.extern.slf4j.Slf4j;
-import jakarta.websocket.Session;
+import com.crypto.arbitrage.providers.mexc.common.MexcSignatureUtil;
+import com.crypto.arbitrage.providers.mexc.model.event.MexcSubscriptionEvent;
+import com.crypto.arbitrage.providers.mexc.model.order.MexcLoginData;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PreDestroy;
 import jakarta.websocket.CloseReason;
+import jakarta.websocket.Session;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.event.EventListener;
+import org.springframework.http.ResponseEntity;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
-import com.fasterxml.jackson.databind.JsonNode;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestClient;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.beans.factory.annotation.Value;
-import com.crypto.arbitrage.providers.mexc.config.MexcConfig;
-import com.crypto.arbitrage.providers.mexc.common.SignatureUtil;
-import com.crypto.arbitrage.providers.mexc.model.order.MexcLoginData;
 
-import java.util.Map;
-import java.time.Instant;
 import java.io.IOException;
 import java.net.URLEncoder;
-import java.util.LinkedHashMap;
-import java.util.stream.Collectors;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.Executors;
 import java.nio.charset.StandardCharsets;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.atomic.AtomicLong;
+import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -38,6 +37,7 @@ public class MexcWebSocketStateService {
     private final int MAX_PING_FAILURES = 3;
     private static final long PING_INTERVAL = 30;
     private static final long KEEPALIVE_INTERVAL = 30 * 60; // 30 minutes in seconds
+    private static final long RECONNECT_DELAY_SECONDS = 10;
     private static final long HEARTBEAT_TIMEOUT_MS = 60000;
     private static final String CONTENT_TYPE_HEADER = "Content-Type";
     private static final String MEXC_API_KEY_HEADER = "X-MEXC-APIKEY";
@@ -48,7 +48,6 @@ public class MexcWebSocketStateService {
     private static final String UNSUBSCRIPTION_TEMPLATE = "{\"method\":\"UNSUBSCRIPTION\",\"params\":[\"%s\"]}";
 
     private final String apiUrl;
-    private final MexcConfig mexcConfig;
     private final RestClient restClient;
     private final String webSocketBaseUrl;
     private final ObjectMapper objectMapper;
@@ -61,32 +60,38 @@ public class MexcWebSocketStateService {
     private final AtomicInteger pingFailureCounter = new AtomicInteger(0);
     private final AtomicLong lastPongTime = new AtomicLong(System.currentTimeMillis());
     private final AtomicBoolean reconnectInProgress = new AtomicBoolean(false);
+    private final ConcurrentSkipListSet<String> subscriptions = new ConcurrentSkipListSet<>();
+
     @Getter
     private String listenKey;
+    @Setter
+    private MexcLoginData loginData;
 
-    public MexcWebSocketStateService(@Value("${mexc.api.url}") String apiUrl, MexcConfig mexcConfig,
+    public MexcWebSocketStateService(@Value("${mexc.api.url}") String apiUrl,
                                      @Value("${mexc.api.websocketBaseUrl}") String webSocketBaseUrl,
                                      MexcWebSocketClient webSocketClient,
                                      RestClient restClient,
                                      ObjectMapper objectMapper) {
         this.apiUrl = apiUrl;
-        this.mexcConfig = mexcConfig;
         this.objectMapper = objectMapper;
         this.webSocketClient = webSocketClient;
         this.webSocketBaseUrl = webSocketBaseUrl;
         this.restClient = restClient;
         this.reconnectAttempts = new AtomicInteger(0);
-        this.pingExecutor = Executors.newSingleThreadScheduledExecutor();
-        this.keepaliveExecutor = Executors.newSingleThreadScheduledExecutor();
-        this.reconnectExecutor = Executors.newSingleThreadScheduledExecutor();
-        this.heartbeatExecutor = Executors.newSingleThreadScheduledExecutor();
+        this.pingExecutor = Executors
+                .newSingleThreadScheduledExecutor(r -> new Thread(r, "PingExecutor"));
+        this.keepaliveExecutor = Executors
+                .newSingleThreadScheduledExecutor(r -> new Thread(r, "KeepaliveExecutor"));
+        this.heartbeatExecutor = Executors
+                .newSingleThreadScheduledExecutor(r -> new Thread(r, "HeartbeatExecutor"));
+        this.reconnectExecutor = Executors
+                .newSingleThreadScheduledExecutor(r -> new Thread(r, "ReconnectExecutor"));
 
     }
 
-    public String getListenKeyFromMexc() {
-        MexcLoginData loginData = mexcConfig.getLoginData();
-        if (loginData == null) {
-            throw new RuntimeException("Method getListenKey: MexcLoginData is null.");
+    public String getListenKeyFromMexc(@NonNull MexcLoginData loginData) {
+        if (this.loginData == null) {
+            this.loginData = loginData;
         }
         Map<String, String> params = new LinkedHashMap<>();
         String signedUrl = getSignedUrl(params, loginData);
@@ -126,6 +131,9 @@ public class MexcWebSocketStateService {
     public void onClose(CloseReason closeReason) {
         if (closeReason != null) {
             CloseReason.CloseCode closeCode = closeReason.getCloseCode();
+            if (!reconnectInProgress.get()) {
+                subscriptions.clear();
+            }
             shutdownAndAwaitTermination(pingExecutor);
             shutdownAndAwaitTermination(keepaliveExecutor);
             shutdownAndAwaitTermination(heartbeatExecutor);
@@ -160,7 +168,6 @@ public class MexcWebSocketStateService {
     }
 
     private void keepAlive() {
-        MexcLoginData loginData = mexcConfig.getLoginData();
         if (loginData == null) {
             log.error("Method keepAlive: MexcLoginData is null.");
             return;
@@ -185,7 +192,7 @@ public class MexcWebSocketStateService {
         String rawQueryString = params.entrySet().stream()
                 .map(e -> e.getKey() + "=" + e.getValue())
                 .collect(Collectors.joining("&"));
-        String signature = SignatureUtil.createSignature(loginData.getApiSecret(), rawQueryString);
+        String signature = MexcSignatureUtil.createSignature(loginData.getApiSecret(), rawQueryString);
         params.put("signature", signature);
         String encodedQueryString = params.entrySet().stream()
                 .map(e -> URLEncoder.encode(e.getKey(), StandardCharsets.UTF_8) + "=" +
@@ -195,34 +202,58 @@ public class MexcWebSocketStateService {
     }
 
     private void scheduleReconnect() {
-        long delay = 5;
-        log.info("Scheduling MexcWebSocket reconnection in {} seconds", delay);
-        reconnectAttempts.incrementAndGet();
-        log.info("Scheduling MexcWebSocket reconnection in {} seconds (attempt {})...",
-                delay, reconnectAttempts.get());
-        reconnectExecutor.schedule(() -> {
-            try {
-                log.info("Attempting to reconnect MexcWebSocket...");
-                String newListenKey = this.getListenKeyFromMexc();
-                if (newListenKey != null) {
-                    log.info("Renewed listenKey: {}", newListenKey);
-                    String newWsUrl = buildWebSocketUrlWithListenKey(webSocketBaseUrl);
-                    log.info("New MexcWebSocket URL: {}", newWsUrl);
-                    webSocketClient.setWebSocketUrlWithListenKey(newWsUrl);
-                    resetExecutors();
-                    pingFailureCounter.set(0);
-                    reconnectInProgress.set(false);
-                    webSocketClient.getSession().set(null);
-                    webSocketClient.connect();
-                } else {
-                    log.error("Failed to renew listenKey; aborting reconnection attempt.");
-                    reconnectInProgress.set(false);
-                }
-            } catch (Exception e) {
-                log.error("User Data WebSocket reconnection failed: {}", e.getMessage());
-                reconnectInProgress.set(false);
+        // Only schedule if not already in progress
+        if (!reconnectInProgress.compareAndSet(false, true)) {
+            return;
+        }
+        log.info("Scheduling MexcWebSocket reconnection in {} seconds", RECONNECT_DELAY_SECONDS);
+        reconnectExecutor.schedule(this::attemptReconnect, RECONNECT_DELAY_SECONDS, TimeUnit.SECONDS);
+    }
+
+    private void attemptReconnect() {
+        try {
+            reconnectInProgress.set(true);
+            // Disconnect any active session
+            Session currentSession = webSocketClient.getSession().get();
+            if (currentSession != null && currentSession.isOpen()) {
+                log.info("Reconnection: Existing session is still open, disconnecting...");
+                webSocketClient.disconnect();
             }
-        }, delay, TimeUnit.SECONDS);
+            // Clear session reference
+            webSocketClient.getSession().set(null);
+
+            // Renew the listenKey
+            String newListenKey = getListenKeyFromMexc(loginData);
+            if (newListenKey != null) {
+                log.info("Renewed listenKey: {}", newListenKey);
+                String newWsUrl = buildWebSocketUrlWithListenKey(webSocketBaseUrl);
+                log.info("New MexcWebSocket URL: {}", newWsUrl);
+                webSocketClient.setWebSocketUrlWithListenKey(newWsUrl);
+                resetExecutors();
+                pingFailureCounter.set(0);
+                webSocketClient.connect();
+                // Schedule a follow-up task (after 2 seconds) to recover subscriptions if the connection is open
+                reconnectExecutor.schedule(() -> {
+                    if (webSocketClient.getSession().get() != null && webSocketClient.getSession().get().isOpen()) {
+                        subscriptions.forEach(this::subscribeToChannel);
+                        reconnectInProgress.set(false);
+                        reconnectAttempts.set(0);
+                    } else {
+                        log.error("Reconnection attempt did not result in an open session.");
+                        reconnectInProgress.set(false);
+                        scheduleReconnect();  // schedule another reconnect if needed
+                    }
+                }, 2, TimeUnit.SECONDS);
+            } else {
+                log.error("Failed to renew listenKey; will retry reconnection.");
+                reconnectInProgress.set(false);
+                scheduleReconnect();
+            }
+        } catch (Exception e) {
+            log.error("User Data WebSocket reconnection failed: {}", e.getMessage());
+            reconnectInProgress.set(false);
+            scheduleReconnect();
+        }
     }
 
     public String buildWebSocketUrlWithListenKey(@NonNull String baseUrl) {
@@ -283,7 +314,7 @@ public class MexcWebSocketStateService {
         Session currentSession = webSocketClient.getSession().get();
         if (currentSession == null || !currentSession.isOpen()) {
             log.error("Method sendPing: Session is not available or not open.");
-            triggerReconnectIfNeeded();
+            triggerReconnect();
         } else {
             String pingMessage = createPingMessage();
             currentSession.getAsyncRemote().sendText(pingMessage, result -> {
@@ -292,7 +323,7 @@ public class MexcWebSocketStateService {
                     log.error("Ping failed ({} consecutive failures): {}",
                             failures, result.getException().getMessage());
                     if (failures >= MAX_PING_FAILURES) {
-                        triggerReconnectIfNeeded();
+                        triggerReconnect();
                     }
                 } else {
                     pingFailureCounter.set(0);
@@ -303,7 +334,6 @@ public class MexcWebSocketStateService {
 
     public void onPongReceived() {
         lastPongTime.set(System.currentTimeMillis());
-        log.info("Heartbeat updated on PONG: {}", lastPongTime.get());
     }
 
     private void startHeartbeatMonitor() {
@@ -311,15 +341,13 @@ public class MexcWebSocketStateService {
             long elapsed = System.currentTimeMillis() - lastPongTime.get();
             if (elapsed > HEARTBEAT_TIMEOUT_MS) {
                 log.error("Heartbeat timeout: No PONG received in {} ms", elapsed);
-                triggerReconnectIfNeeded();
+                triggerReconnect();
             }
         }, HEARTBEAT_TIMEOUT_MS, HEARTBEAT_TIMEOUT_MS, TimeUnit.MILLISECONDS);
     }
 
-    private void triggerReconnectIfNeeded() {
-        if (reconnectInProgress.compareAndSet(false, true)) {
-            scheduleReconnect();
-        }
+    private void triggerReconnect() {
+        scheduleReconnect();
     }
 
     private String createPingMessage() {
@@ -330,21 +358,13 @@ public class MexcWebSocketStateService {
         shutdownAndAwaitTermination(pingExecutor);
         shutdownAndAwaitTermination(keepaliveExecutor);
         shutdownAndAwaitTermination(heartbeatExecutor);
-        pingExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
-            Thread t = new Thread(r);
-            t.setName("PingExecutor");
-            return t;
-        });
-        keepaliveExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
-            Thread t = new Thread(r);
-            t.setName("KeepaliveExecutor");
-            return t;
-        });
-        heartbeatExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
-            Thread t = new Thread(r);
-            t.setName("HeartBeatExecutor");
-            return t;
-        });
+        // Reinitialize executors
+        pingExecutor = Executors.newSingleThreadScheduledExecutor(r ->
+                new Thread(r, "PingExecutor"));
+        keepaliveExecutor = Executors.newSingleThreadScheduledExecutor(r ->
+                new Thread(r, "KeepaliveExecutor"));
+        heartbeatExecutor = Executors.newSingleThreadScheduledExecutor(r ->
+                new Thread(r, "HeartbeatExecutor"));
     }
 
     private void shutdownAndAwaitTermination(ExecutorService executor) {
@@ -362,6 +382,11 @@ public class MexcWebSocketStateService {
                 Thread.currentThread().interrupt();
             }
         }
+    }
+
+    @EventListener
+    public void onSubscriptionEvent(@NonNull MexcSubscriptionEvent event) {
+        subscriptions.add(event.getChannel());
     }
 
     @PreDestroy

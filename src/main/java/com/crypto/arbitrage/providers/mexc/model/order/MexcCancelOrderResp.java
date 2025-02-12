@@ -6,7 +6,7 @@ import lombok.Data;
 
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true) // Игнорировать неизвестные поля
-public class CancelOrderResp {
+public class MexcCancelOrderResp {
     private String symbol;
 
     @JsonProperty("origClientOrderId")
@@ -27,12 +27,12 @@ public class CancelOrderResp {
 
     private String cummulativeQuoteQty;
 
-    private OrderStatus status;
+    private MexcOrderStatus status;
 
-    private TimeInForce timeInForce;
+    private MexcTimeInForce mexcTimeInForce;
 
-    private OrderType type;
+    private MexcOrderType type;
 
-    private OrderSide side;
+    private MexcOrderSide side;
 }
 

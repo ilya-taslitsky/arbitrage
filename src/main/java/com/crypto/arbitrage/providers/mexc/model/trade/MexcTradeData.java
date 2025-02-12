@@ -6,20 +6,16 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
 
+import java.util.List;
+
 @Getter
 @Setter
 @ToString
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
-public class TradeDeal {
-    @JsonProperty("S")
-    private int tradeType;   // 1 = buy, 2 = sell
+public class MexcTradeData {
+    @JsonProperty("deals")
+    private List<MexcTradeDeal> deals;
 
-    @JsonProperty("p")
-    private String price;
-
-    @JsonProperty("t")
-    private long dealTime;
-
-    @JsonProperty("v")
-    private String quantity;
+    @JsonProperty("e")
+    private String eventType;
 }

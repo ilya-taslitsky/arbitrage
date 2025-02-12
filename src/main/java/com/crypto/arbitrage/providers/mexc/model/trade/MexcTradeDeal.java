@@ -10,16 +10,16 @@ import lombok.ToString;
 @Setter
 @ToString
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
-public class TradeStream {
-    @JsonProperty("c")
-    private String channel;
+public class MexcTradeDeal {
+    @JsonProperty("S")
+    private int tradeType;   // 1 = buy, 2 = sell
 
-    @JsonProperty("d")
-    private TradeData tradeData;
-
-    @JsonProperty("s")
-    private String symbol;
+    @JsonProperty("p")
+    private String price;
 
     @JsonProperty("t")
-    private long eventTime;
+    private long dealTime;
+
+    @JsonProperty("v")
+    private String quantity;
 }

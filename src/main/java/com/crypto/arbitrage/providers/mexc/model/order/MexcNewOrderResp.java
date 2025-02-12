@@ -9,7 +9,7 @@ import lombok.ToString;
 @Setter
 @ToString
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
-public class NewOrderResp {
+public class MexcNewOrderResp {
     private String symbol;
     private String origClientOrderId;
     private String orderId;

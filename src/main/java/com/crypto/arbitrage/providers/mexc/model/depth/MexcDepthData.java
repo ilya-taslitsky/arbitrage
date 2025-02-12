@@ -1,5 +1,6 @@
 package com.crypto.arbitrage.providers.mexc.model.depth;
 
+import com.crypto.arbitrage.providers.mexc.model.MexcData;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -12,18 +13,21 @@ import java.util.List;
 @Setter
 @ToString
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
-public class DepthData {
+public class MexcDepthData implements MexcData {
     @JsonProperty("asks")
-    private List<DepthEntry> asks;
+    private List<MexcDepthEntry> asks;
 
     @JsonProperty("bids")
-    private List<DepthEntry> bids;
+    private List<MexcDepthEntry> bids;
 
     @JsonProperty("e")
     private String event;
 
     @JsonProperty("r")
     private long version;
+
+    @JsonProperty("s")
+    private String symbol;
 
     @JsonProperty("t")
     private long timestamp;

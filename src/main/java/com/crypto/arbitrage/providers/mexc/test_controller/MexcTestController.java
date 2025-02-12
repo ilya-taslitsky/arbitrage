@@ -1,9 +1,9 @@
 package com.crypto.arbitrage.providers.mexc.test_controller;
 
-import com.crypto.arbitrage.providers.mexc.model.order.CancelOrderReq;
-import com.crypto.arbitrage.providers.mexc.model.order.CancelOrderResp;
-import com.crypto.arbitrage.providers.mexc.model.order.NewOrderReq;
-import com.crypto.arbitrage.providers.mexc.model.order.NewOrderResp;
+import com.crypto.arbitrage.providers.mexc.model.order.MexcCancelOrderReq;
+import com.crypto.arbitrage.providers.mexc.model.order.MexcCancelOrderResp;
+import com.crypto.arbitrage.providers.mexc.model.order.MexcNewOrderReq;
+import com.crypto.arbitrage.providers.mexc.model.order.MexcNewOrderResp;
 import com.crypto.arbitrage.providers.mexc.service.MexcOrderService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -30,16 +30,16 @@ public class MexcTestController {
 //    }
 
     @PostMapping(ORDER_URL)
-    public ResponseEntity<?> createOrder(@Valid @ModelAttribute NewOrderReq req) {
-        NewOrderResp order = mexcOrderService.sendOrder(req);
+    public ResponseEntity<?> createOrder(@Valid @ModelAttribute MexcNewOrderReq req) {
+        MexcNewOrderResp order = mexcOrderService.sendOrder(req);
         return ResponseEntity.ok(order);
     }
 
     @DeleteMapping(ORDER_URL)
-    public ResponseEntity<?> cancelOrder(@Valid @ModelAttribute CancelOrderReq req) {
-        CancelOrderResp cancelOrderResponse = mexcOrderService.cancelOrder(req);
-        if (cancelOrderResponse != null) {
-            return ResponseEntity.ok(cancelOrderResponse);
+    public ResponseEntity<?> cancelOrder(@Valid @ModelAttribute MexcCancelOrderReq req) {
+        MexcCancelOrderResp mexcCancelOrderResponse = mexcOrderService.cancelOrder(req);
+        if (mexcCancelOrderResponse != null) {
+            return ResponseEntity.ok(mexcCancelOrderResponse);
         } else {
             return ResponseEntity.badRequest().build();
         }

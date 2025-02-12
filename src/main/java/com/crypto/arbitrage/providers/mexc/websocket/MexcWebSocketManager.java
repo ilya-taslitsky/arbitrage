@@ -1,16 +1,21 @@
 package com.crypto.arbitrage.providers.mexc.websocket;
 
-import lombok.NonNull;
-import lombok.extern.slf4j.Slf4j;
+import com.crypto.arbitrage.config.AppConfig;
+import com.crypto.arbitrage.providers.mexc.model.order.MexcLoginData;
 import jakarta.websocket.Session;
-import org.springframework.stereotype.Service;
-import org.springframework.beans.factory.annotation.Value;
-import com.crypto.arbitrage.providers.mexc.config.MexcConfig;
+import lombok.NonNull;
+import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
 
 @Slf4j
 @Service
 public class MexcWebSocketManager {
+
+    @Setter
+    private MexcLoginData loginData;
 
     private final String baseWebsocketUrl;
     private static final String BOOK_DEPTH = "5";
@@ -30,7 +35,7 @@ public class MexcWebSocketManager {
 
     @Autowired
     public MexcWebSocketManager(@Value("${mexc.api.websocketBaseUrl}") String baseWebsocketUrl,
-                                MexcConfig mexcConfig,
+                                AppConfig appConfig,
                                 MexcWebSocketClient mexcWebSocketClient,
                                 MexcWebSocketStateService webSocketStateService) {
         this.baseWebsocketUrl = baseWebsocketUrl;
@@ -45,7 +50,7 @@ public class MexcWebSocketManager {
             return;
         }
 
-        String newListenKey = webSocketStateService.getListenKeyFromMexc();
+        String newListenKey = webSocketStateService.getListenKeyFromMexc(loginData);
         if (newListenKey != null) {
             String fullUrl = webSocketStateService.buildWebSocketUrlWithListenKey(baseWebsocketUrl);
             log.info("Opening User Data WebSocket with URL: {}", fullUrl);

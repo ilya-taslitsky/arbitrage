@@ -5,6 +5,6 @@ import lombok.Data;
 
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class WithdrawResponse {
+public class MexcWithdrawResp {
     private String id;
 }

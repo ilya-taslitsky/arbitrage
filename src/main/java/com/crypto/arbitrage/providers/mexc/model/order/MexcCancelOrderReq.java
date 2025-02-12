@@ -13,7 +13,7 @@ import lombok.ToString;
 @ToString
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
-public class CancelOrderReq {
+public class MexcCancelOrderReq {
 
     @NotBlank(message = "Symbol is required")
     @Pattern(regexp = "^[A-Z]+$", message = "Symbol must consist of uppercase letters only")

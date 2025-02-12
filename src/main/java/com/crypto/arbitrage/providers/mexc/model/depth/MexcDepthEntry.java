@@ -1,4 +1,4 @@
-package com.crypto.arbitrage.providers.mexc.model.trade;
+package com.crypto.arbitrage.providers.mexc.model.depth;
 
 import lombok.Getter;
 import lombok.Setter;
@@ -6,16 +6,14 @@ import lombok.ToString;
 import lombok.EqualsAndHashCode;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-import java.util.List;
-
 @Getter
 @Setter
 @ToString
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
-public class TradeData {
-    @JsonProperty("deals")
-    private List<TradeDeal> deals;
+public class MexcDepthEntry {
+    @JsonProperty("p")
+    private String price;
 
-    @JsonProperty("e")
-    private String eventType;
+    @JsonProperty("v")
+    private String quantity;
 }

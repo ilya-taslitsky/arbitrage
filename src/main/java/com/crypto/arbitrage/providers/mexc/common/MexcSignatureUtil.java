@@ -6,14 +6,14 @@ import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 
-public class SignatureUtil {
+public class MexcSignatureUtil {
 
     /**
-     * Создаёт подпись HMAC SHA256 на основе строки параметров.
+     * Creates an HMAC SHA256 signature based on the parameter string.
      *
-     * @param apiSecret     Ваш секретный ключ API.
-     * @param rawQueryString Строка параметров без URL-кодирования.
-     * @return Подпись в виде шестнадцатеричной строки.
+     * @param apiSecret      Your API secret key.
+     * @param rawQueryString The parameter string without URL encoding.
+     * @return The signature as a hexadecimal string.
      */
     public static String createSignature(String apiSecret, String rawQueryString) {
         try {
@@ -24,15 +24,15 @@ public class SignatureUtil {
             byte[] hash = sha256_HMAC.doFinal(rawQueryString.getBytes(StandardCharsets.UTF_8));
             return bytesToHex(hash);
         } catch (NoSuchAlgorithmException | InvalidKeyException e) {
-            throw new RuntimeException("Не удалось создать подпись", e);
+            throw new RuntimeException("Error creating HMAC SHA256 HMAC", e);
         }
     }
 
     /**
-     * Преобразует массив байтов в шестнадцатеричную строку.
+     * Converts a byte array to a hexadecimal string.
      *
-     * @param bytes Массив байтов.
-     * @return Шестнадцатеричная строка.
+     * @param bytes The byte array.
+     * @return The hexadecimal string.
      */
     private static String bytesToHex(byte[] bytes) {
         StringBuilder hexString = new StringBuilder(2 * bytes.length);

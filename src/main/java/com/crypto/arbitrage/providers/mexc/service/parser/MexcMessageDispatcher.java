@@ -1,13 +1,15 @@
 package com.crypto.arbitrage.providers.mexc.service.parser;
 
-import lombok.extern.slf4j.Slf4j;
-import lombok.RequiredArgsConstructor;
-import com.fasterxml.jackson.databind.JsonNode;
-import org.springframework.stereotype.Component;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.crypto.arbitrage.providers.mexc.model.common.MexcSubscriptionResp;
+import com.crypto.arbitrage.providers.mexc.model.depth.MexcDepthData;
+import com.crypto.arbitrage.providers.mexc.model.trade.MexcTradeStream;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.crypto.arbitrage.providers.mexc.model.depth.DepthData;
-import com.crypto.arbitrage.providers.mexc.model.trade.TradeStream;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
 
 
 @Slf4j
@@ -19,37 +21,36 @@ public class MexcMessageDispatcher {
     private static final String DEPTH_CHANNEL = "public.limit.depth.v3.api";
 
     private final ObjectMapper objectMapper;
-    private final MexcTradeMessageProcessor tradeProcessor;
-    private final MexcDepthMessageProcessor depthProcessor;
+    private final MexcDataProcessor dataProcessor;
 
-    public void dispatchMessage(String message) {
+    public void dispatchMessage(@NonNull String message) {
         try {
             JsonNode root = objectMapper.readTree(message);
 
             if (isChannelMessage(root)) {
                 processChannelMessage(root, message);
-            } else if (isControlMessage(root)) {
-                processControlMessage(root, message);
+            } else if (isSubscriptionMessage(root)) {
+                processSubscriptionMessage(root);
             } else {
-                processUnrecognizedMessage(root, message);
+                processUnrecognizedMessage(message);
             }
         } catch (Exception e) {
             log.error("Error dispatching message: {}", message, e);
         }
     }
 
-    private boolean isChannelMessage(JsonNode root) {
+    private boolean isChannelMessage(@NonNull JsonNode root) {
         return root.hasNonNull("c") && !root.get("c").asText().isEmpty();
     }
 
-    private boolean isControlMessage(JsonNode root) {
-        return root.has("method");
+    private boolean isSubscriptionMessage(@NonNull JsonNode root) {
+        return root.has("id") &&
+                root.has("code") &&
+                root.has("msg");
     }
 
-    private void processChannelMessage(JsonNode root, String message) {
+    private void processChannelMessage(@NonNull JsonNode root, @NonNull String message) {
         String channel = root.get("c").asText();
-        String symbol = root.path("s").asText();
-
         if (!channel.contains("@")) {
             log.debug("Channel does not contain '@': {}", message);
             return;
@@ -64,34 +65,40 @@ public class MexcMessageDispatcher {
         String identifier = parts[1];
         switch (identifier) {
             case DEAL_CHANNEL -> {
-                TradeStream tradeStream;
+                MexcTradeStream mexcTradeStream;
                 try {
-                    tradeStream = objectMapper.treeToValue(root, TradeStream.class);
+                    mexcTradeStream = objectMapper.treeToValue(root, MexcTradeStream.class);
                 } catch (JsonProcessingException e) {
                     throw new RuntimeException(e);
                 }
-                tradeProcessor.process(tradeStream);
+                dataProcessor.process(mexcTradeStream);
             }
             case DEPTH_CHANNEL -> {
-                DepthData depthData;
+                MexcDepthData mexcDepthData;
                 try {
-                    depthData = objectMapper.treeToValue(root.path("d"), DepthData.class);
+                    mexcDepthData = objectMapper.treeToValue(root.path("d"), MexcDepthData.class);
                 } catch (JsonProcessingException e) {
                     throw new RuntimeException(e);
                 }
-                depthProcessor.process(symbol, depthData);
+                dataProcessor.process(mexcDepthData);
             }
             default -> log.warn("Unrecognized channel identifier: {} in message: {}", identifier, message);
         }
     }
 
-    private void processControlMessage(JsonNode root, String message) {
-        String method = root.get("method").asText();
-        log.debug("Received control message with method '{}': {}", method, message);
+    private void processSubscriptionMessage(@NonNull JsonNode root) {
+        try {
+            MexcSubscriptionResp subscriptionResp = objectMapper.treeToValue(root, MexcSubscriptionResp.class);
+            if (subscriptionResp != null) {
+                dataProcessor.process(subscriptionResp);
+            }
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
     }
 
-    private void processUnrecognizedMessage(JsonNode root, String message) {
-        log.debug("Received unrecognized message structure: {}", message);
+    private void processUnrecognizedMessage(@NonNull String message) {
+        log.info("Received unrecognized message structure: {}", message);
     }
 }
 

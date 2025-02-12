@@ -1,6 +1,6 @@
 package com.crypto.arbitrage.providers.mexc.model.order;
 
-public enum OrderType {
+public enum MexcOrderType {
     LIMIT,
     MARKET
 }

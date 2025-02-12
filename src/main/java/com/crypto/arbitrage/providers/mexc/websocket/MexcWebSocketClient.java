@@ -1,6 +1,6 @@
 package com.crypto.arbitrage.providers.mexc.websocket;
 
-import com.crypto.arbitrage.providers.mexc.model.event.WebSocketSessionStatusEvent;
+import com.crypto.arbitrage.providers.mexc.model.event.MexcWebSocketSessionStatusEvent;
 import com.crypto.arbitrage.providers.mexc.service.parser.MexcMessageDispatcher;
 import jakarta.annotation.PreDestroy;
 import jakarta.websocket.*;
@@ -17,8 +17,7 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
@@ -35,6 +34,8 @@ public class MexcWebSocketClient {
     private final MexcWebSocketStateService mexcWebSocketStateService;
     @Getter
     private AtomicReference<Session> session = new AtomicReference<>();
+    private final ScheduledExecutorService scheduledExecutorService =
+            Executors.newSingleThreadScheduledExecutor();
 
     @Autowired
     public MexcWebSocketClient(MexcMessageDispatcher dispatcher, @Value("${mexc.api.websocketBaseUrl}") String baseUrl,
@@ -59,7 +60,7 @@ public class MexcWebSocketClient {
                     new URI(webSocketUrlWithListenKey));
             this.session.set(activeSession);
         } catch (DeploymentException | IOException | URISyntaxException e) {
-            publisher.publishEvent(new WebSocketSessionStatusEvent(false));
+            publisher.publishEvent(new MexcWebSocketSessionStatusEvent(false));
             throw new RuntimeException(e);
         }
     }
@@ -81,17 +82,17 @@ public class MexcWebSocketClient {
 
     @OnOpen
     public void onOpen() {
-        publisher.publishEvent(new WebSocketSessionStatusEvent(true));
         log.info("Method onOpen: MexcWebSocket session opened.");
-        Executors.newSingleThreadScheduledExecutor()
+        scheduledExecutorService
                 .schedule(mexcWebSocketStateService::onOpen, 1, TimeUnit.SECONDS);
+
     }
 
     @OnMessage
     public void onMessage(String message) {
+        // Heartbeat message for websocket connection liveness
         if (message.contains(PONG_MESSAGE)) {
             mexcWebSocketStateService.onPongReceived();
-            log.info("Received PONG message: {}", message);
             return;
         }
         dispatcher.dispatchMessage(message);
@@ -114,7 +115,7 @@ public class MexcWebSocketClient {
             } finally {
                 session.set(null);
             }
-            publisher.publishEvent(new WebSocketSessionStatusEvent(false));
+            publisher.publishEvent(new MexcWebSocketSessionStatusEvent(false));
             mexcWebSocketStateService.onClose(closeReason);
         } else {
             log.info("Method onClose: session is already closed.");
@@ -139,7 +140,7 @@ public class MexcWebSocketClient {
             log.warn("Method onError: Session is already null.");
         }
         log.error("Method onError: MexcWebSocket error: {}", thr.getMessage());
-        publisher.publishEvent(new WebSocketSessionStatusEvent(false));
+        publisher.publishEvent(new MexcWebSocketSessionStatusEvent(false));
     }
 
     public void sendMessage(@NonNull String message) {
@@ -158,7 +159,7 @@ public class MexcWebSocketClient {
     private void closeSession(CloseReason closeReason) {
         try {
             session.get().close(closeReason);
-            publisher.publishEvent(new WebSocketSessionStatusEvent(false));
+            publisher.publishEvent(new MexcWebSocketSessionStatusEvent(false));
         } catch (IOException e) {
             log.error("Method closeSession: Error on closing MexcWebSocket session: reason {} : exception {}",
                     closeReason.getCloseCode(),
@@ -169,5 +170,6 @@ public class MexcWebSocketClient {
     @PreDestroy
     public void onShutdown() {
         disconnect();
+        scheduledExecutorService.shutdownNow();
     }
 }

@@ -17,15 +17,15 @@ import java.math.BigDecimal;
 @ToString
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
-public class NewOrderReq implements OrderSendParameters {
+public class MexcNewOrderReq implements OrderSendParameters {
     @NotBlank(message = "Symbol is required")
     private String symbol;
 
     @NotNull(message = "Order side is required")
-    private OrderSide side;
+    private MexcOrderSide side;
 
     @NotNull(message = "Order type is required")
-    private OrderType type;
+    private MexcOrderType type;
 
     @DecimalMin(value = "0.0", inclusive = false, message = "Quantity must be positive")
     private BigDecimal quantity;

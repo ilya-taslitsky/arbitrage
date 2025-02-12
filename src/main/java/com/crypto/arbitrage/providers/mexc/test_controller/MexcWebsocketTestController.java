@@ -32,6 +32,7 @@ public class MexcWebsocketTestController {
     private final static String DEPTH_STREAM_PATTERN_VIOLATION =
             "Depth stream request must match the pattern 'spot@public.limit.depth.v3.api@<SYMBOL>@<level>' where <SYMBOL> is uppercase and <level> is numeric.";
 
+    private final static String UNSUBSCRIBE = "/unsubscribe";
     private final static String OPEN_WEBSOCKET = "/open-websocket";
     private final static String CLOSE_WEBSOCKET = "/close-websocket";
     private final static String ACCOUNT_DEALS = "/subscription/account-deals";
@@ -45,20 +46,20 @@ public class MexcWebsocketTestController {
 
     @PostMapping(TRADE_STREAMS)
     public ResponseEntity<?> subscribeToTradeStream(@RequestParam String req) {
-//        if (!req.matches(TRADE_STREAM_PATTERN)) {
-//            return ResponseEntity.badRequest().body(TRADE_STREAM_PATTERN_VIOLATION);
-//        }
         SubscribeInfo subscribeInfo = new SubscribeInfo(req, null, null);
 
         mexcProvider.subscribe(subscribeInfo);
         return new ResponseEntity<>(HttpStatus.OK);
     }
 
+    @PostMapping(UNSUBSCRIBE)
+    public ResponseEntity<?> unsubscribe(@RequestParam String req) {
+        mexcProvider.unsubscribe(req);
+        return new ResponseEntity<>(HttpStatus.OK);
+    }
+
     @PostMapping(PARTIAL_BOOK_DEPTH_STREAM)
     public ResponseEntity<?> subscribeToPartialBookDepthStream(@RequestParam String req) {
-//        if (!req.matches(DEPTH_STREAM_PATTERN)) {
-//            return ResponseEntity.badRequest().body(DEPTH_STREAM_PATTERN_VIOLATION);
-//        }
         SubscribeInfo subscribeInfo = new SubscribeInfo(req, null, null);
         mexcProvider.subscribe(subscribeInfo);
         return new ResponseEntity<>(HttpStatus.OK);
@@ -84,9 +85,6 @@ public class MexcWebsocketTestController {
 
     @PostMapping(ACCOUNT_DEALS)
     public ResponseEntity<?> subscribeToDeals(@RequestParam String req) {
-//        if (!req.matches(ACCOUNT_DEALS_PATTERN)) {
-//            return ResponseEntity.badRequest().body(ACCOUNT_DEALS_PATTERN_VIOLATION);
-//        }
         mexcWebSocketManager.subscribeToTopic(req);
         return new ResponseEntity<>(HttpStatus.OK);
     }

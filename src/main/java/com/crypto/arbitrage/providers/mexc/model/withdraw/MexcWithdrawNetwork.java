@@ -1,6 +1,6 @@
 package com.crypto.arbitrage.providers.mexc.model.withdraw;
 
-public enum WithdrawNetwork {
+public enum MexcWithdrawNetwork {
     EOS,
     BTC,
     ETH

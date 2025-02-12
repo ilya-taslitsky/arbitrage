@@ -11,7 +11,7 @@ import java.math.BigDecimal;
 @Setter
 @ToString
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
-public class WithdrawRequest {
+public class MexcWithdrawReq {
     private String coin;
     private String withdrawOrderId;
     private String netWork;

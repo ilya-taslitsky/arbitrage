@@ -1,15 +1,15 @@
 package com.crypto.arbitrage.providers.mexc;
 
 
-import com.crypto.arbitrage.providers.mexc.config.MexcConfig;
 import com.crypto.arbitrage.providers.mexc.model.event.MexcDepthEvent;
 import com.crypto.arbitrage.providers.mexc.model.event.MexcExchangeEvent;
 import com.crypto.arbitrage.providers.mexc.model.event.MexcTradeEvent;
-import com.crypto.arbitrage.providers.mexc.model.event.WebSocketSessionStatusEvent;
+import com.crypto.arbitrage.providers.mexc.model.event.MexcWebSocketSessionStatusEvent;
 import com.crypto.arbitrage.providers.mexc.model.order.MexcLoginData;
-import com.crypto.arbitrage.providers.mexc.model.order.NewOrderReq;
+import com.crypto.arbitrage.providers.mexc.model.order.MexcNewOrderReq;
 import com.crypto.arbitrage.providers.mexc.service.MexcOrderService;
 import com.crypto.arbitrage.providers.mexc.websocket.MexcWebSocketManager;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
@@ -33,25 +33,20 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Layer0LiveModule(shortName = "MEXC", fullName = "MEXC-Provider")
 public class MexcProvider extends ExternalLiveBaseProvider {
 
-    private final static String MEXC_WEB_SOCKET_SESSION_ALREADY_ACTIVE =
-            "MexcWebSocket session is already active.";
-    private final static String MEXC_WEB_SOCKET_SESSION_NOT_ACTIVE =
-            "MexcWebSocket session is not active.";
-
+    @Getter
     private final AtomicBoolean isSessionActive = new AtomicBoolean(false);
 
-    private final MexcConfig mexcConfig;
     private final MexcOrderService mexcOrderService;
     private final MexcWebSocketManager mexcWebSocketManager;
 
     @Override
     public void login(@NonNull LoginData loginData) {
         if (isSessionActive.get()) {
-            log.error(MEXC_WEB_SOCKET_SESSION_ALREADY_ACTIVE);
+            log.warn("Method login: MexcWebSocket session is already active.");
             return;
         }
         if (isLoginDataValid(loginData)) {
-            mexcConfig.setLoginData((MexcLoginData) loginData);
+            mexcWebSocketManager.setLoginData((MexcLoginData) loginData);
             mexcWebSocketManager.openWebSocket();
         } else {
             log.error("LoginData must be of type MexcLoginData " +
@@ -78,7 +73,7 @@ public class MexcProvider extends ExternalLiveBaseProvider {
     @Override
     public void subscribe(@NonNull SubscribeInfo subscribeInfo) {
         if (!isSessionActive.get()) {
-            log.error(MEXC_WEB_SOCKET_SESSION_NOT_ACTIVE);
+            log.warn("Method subscribe: MexcWebSocket session is not active.");
             return;
         }
         if (subscribeInfo.symbol == null) {
@@ -95,11 +90,11 @@ public class MexcProvider extends ExternalLiveBaseProvider {
 
     @Override
     public void sendOrder(@NonNull OrderSendParameters orderSendParameters) {
-        if (orderSendParameters instanceof NewOrderReq newOrderReq) {
-            mexcOrderService.sendOrder(newOrderReq);
+        if (orderSendParameters instanceof MexcNewOrderReq mexcNewOrderReq) {
+            mexcOrderService.sendOrder(mexcNewOrderReq);
             log.info("OrderSendParameters: {}", orderSendParameters);
         } else {
-            log.error("OrderSendParameters must be of type NewOrderReq.");
+            log.warn("OrderSendParameters must be of type NewOrderReq.");
         }
     }
 
@@ -109,19 +104,16 @@ public class MexcProvider extends ExternalLiveBaseProvider {
     }
 
     @EventListener
-    public void onWebSocketSessionStatusEvent(@NonNull WebSocketSessionStatusEvent event) {
-        isSessionActive.set(event.isActive());
-        log.info("WebSocket session is now {}", event.isActive() ? "active" : "inactive");
-    }
-
-    private boolean isLoginDataValid(@NonNull LoginData loginData) {
-        return loginData instanceof MexcLoginData mexcLoginData &&
-                mexcLoginData.getApiKey() != null &&
-                mexcLoginData.getApiSecret() != null;
+    public void onWebSocketSessionStatusEvent(@NonNull MexcWebSocketSessionStatusEvent event) {
+        boolean isActive = isSessionActive.get();
+        if (isActive != event.isActive()) {
+            isSessionActive.set(event.isActive());
+            log.info("WebSocket session is now {}", event.isActive() ? "active" : "inactive");
+        }
     }
 
     @EventListener
-    public void handleMexcEvent(@NonNull MexcExchangeEvent event) {
+    public void onMexcEvent(@NonNull MexcExchangeEvent event) {
         if (event instanceof MexcTradeEvent tradeEvent) {
             log.info("Method handleMexcEvent: MexcTradeEvent {}", tradeEvent);
             dataListeners.forEach(listener -> listener.onTrade(
@@ -137,5 +129,11 @@ public class MexcProvider extends ExternalLiveBaseProvider {
                     depthEvent.getPrice(),
                     depthEvent.getSize()));
         }
+    }
+
+    private boolean isLoginDataValid(@NonNull LoginData loginData) {
+        return loginData instanceof MexcLoginData mexcLoginData &&
+                mexcLoginData.getApiKey() != null &&
+                mexcLoginData.getApiSecret() != null;
     }
 }

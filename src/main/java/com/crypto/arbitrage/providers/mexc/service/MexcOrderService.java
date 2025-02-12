@@ -1,6 +1,7 @@
 package com.crypto.arbitrage.providers.mexc.service;
 
 
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
@@ -8,9 +9,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestClient;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.crypto.arbitrage.providers.mexc.model.order.*;
-import com.crypto.arbitrage.providers.mexc.config.MexcConfig;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Autowired;
-import com.crypto.arbitrage.providers.mexc.common.SignatureUtil;
+import com.crypto.arbitrage.providers.mexc.common.MexcSignatureUtil;
 
 import java.util.Map;
 import java.time.Instant;
@@ -29,36 +30,33 @@ public class MexcOrderService {
     private static final String MEXC_API_KEY_HEADER = "X-MEXC-APIKEY";
     private static final String CONTENT_TYPE_APPLICATION_JSON = "application/json";
 
-    private final MexcConfig mexcConfig;
     private final RestClient restClient;
-    private final MexcLoginData loginData;
     private final ObjectMapper objectMapper;
 
+    @Setter
+    private MexcLoginData loginData;
+    private final String mexcApiUrl;
+
     @Autowired
-    public MexcOrderService(MexcConfig mexcConfig,
+    public MexcOrderService(@Value("${mexc.api.url}") String mexcApiUrl,
                             RestClient restClient,
-                            MexcConfig mexcClientConfig,
                             ObjectMapper objectMapper) {
-        this.mexcConfig = mexcConfig;
+        this.mexcApiUrl = mexcApiUrl;
         this.restClient = restClient;
         this.objectMapper = objectMapper;
-        this.loginData = mexcClientConfig.getLoginData();
     }
 
-    public NewOrderResp sendOrder(@NonNull NewOrderReq request) {
+    public MexcNewOrderResp sendOrder(@NonNull MexcNewOrderReq request) {
         String endpoint = "/api/v3/order";
         Map<String, String> parameters = new LinkedHashMap<>();
         parameters.put("symbol", request.getSymbol());
         parameters.put("side", request.getSide().name());
         parameters.put("type", request.getType().name());
 
-        if (request.getType() == OrderType.LIMIT) {
-            if (request.getQuantity() == null || request.getPrice() == null) {
-                log.error("LIMIT order must have quantity and price.");
-            }
+        if (request.getType() == MexcOrderType.LIMIT) {
             parameters.put("quantity", request.getQuantity().toPlainString());
             parameters.put("price", request.getPrice().toPlainString());
-        } else if (request.getType() == OrderType.MARKET) {
+        } else if (request.getType() == MexcOrderType.MARKET) {
             if (request.getQuantity() == null && request.getQuoteOrderQty() == null) {
                 log.error("MARKET order must have either quantity or quoteOrderQty.");
             }
@@ -80,12 +78,12 @@ public class MexcOrderService {
         parameters.put("timestamp", String.valueOf(Instant.now().toEpochMilli()));
 
         String signedUrl = getSignedUrl(endpoint, parameters);
-        if(isSignedUrlNull(signedUrl)) {
+        if (signedUrl == null) {
+            log.error("Method sendOrder: Signed url is null.");
             return null;
         }
 
         try {
-            assert signedUrl != null;
             ResponseEntity<String> response = restClient
                     .put()
                     .uri(signedUrl)
@@ -96,7 +94,7 @@ public class MexcOrderService {
 
             if (response.getStatusCode().value() == 200) {
                 return objectMapper.readValue(response.getBody(),
-                        NewOrderResp.class);
+                        MexcNewOrderResp.class);
 
             } else {
                 log.error("Error creating new Mexc order: {}", response.getBody());
@@ -109,7 +107,7 @@ public class MexcOrderService {
         return null;
     }
 
-    public CancelOrderResp cancelOrder(@NonNull CancelOrderReq req) {
+    public MexcCancelOrderResp cancelOrder(@NonNull MexcCancelOrderReq req) {
         String endpoint = "/api/v3/order";
         Map<String, String> parameters = new LinkedHashMap<>();
         parameters.put("symbol", req.getSymbol());
@@ -125,12 +123,12 @@ public class MexcOrderService {
 
         String signedUrl = getSignedUrl(endpoint, parameters);
 
-        if(isSignedUrlNull(signedUrl)) {
+        if (signedUrl == null) {
+            log.error("Method cancelOrder: Signed url is null.");
             return null;
         }
 
         try {
-            assert signedUrl != null;
             ResponseEntity<String> response = restClient
                     .put()
                     .uri(signedUrl)
@@ -142,7 +140,7 @@ public class MexcOrderService {
                 log.error("Error canceling order: {}", response.getBody());
             }
 
-            return objectMapper.readValue(response.getBody(), CancelOrderResp.class);
+            return objectMapper.readValue(response.getBody(), MexcCancelOrderResp.class);
         } catch (IOException e) {
             Thread.currentThread().interrupt();
             log.error("Error canceling order", e);
@@ -152,8 +150,7 @@ public class MexcOrderService {
 
     private String getSignedUrl(@NonNull String endpoint,
                                 @NonNull Map<String, String> parameters) {
-        String apiUrl = mexcConfig.getApiUrl();
-        if(apiUrl == null) {
+        if (mexcApiUrl == null) {
             log.error("Mexc API url is null");
             return null;
         }
@@ -161,22 +158,13 @@ public class MexcOrderService {
                 .map(entry -> entry.getKey() + "=" + entry.getValue())
                 .collect(Collectors.joining("&"));
 
-        String signature = SignatureUtil.createSignature(loginData.getApiSecret(), rawQueryString);
+        String signature = MexcSignatureUtil.createSignature(loginData.getApiSecret(), rawQueryString);
         parameters.put("signature", signature);
 
         String encodedQueryString = parameters.entrySet().stream()
                 .map(entry -> encodeValue(entry.getKey()) + "=" + encodeValue(entry.getValue()))
                 .collect(Collectors.joining("&"));
-        return apiUrl + endpoint + "?" + encodedQueryString;
-    }
-
-    private boolean isSignedUrlNull(String signedUrl) {
-        if(signedUrl != null){
-            return false;
-        }else {
-            log.error("Signed url is null");
-            return true;
-        }
+        return mexcApiUrl + endpoint + "?" + encodedQueryString;
     }
 
     private String encodeValue(String value) {

@@ -1,6 +1,6 @@
 package com.crypto.arbitrage.providers.mexc.model.order;
 
-public enum OrderStatus {
+public enum MexcOrderStatus {
     NEW,
     PARTIALLY_FILLED,
     FILLED,
