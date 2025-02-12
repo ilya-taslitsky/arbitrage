@@ -1,6 +1,5 @@
 package com.crypto.arbitrage.providers.mexc.websocket;
 
-import com.crypto.arbitrage.config.AppConfig;
 import com.crypto.arbitrage.providers.mexc.model.order.MexcLoginData;
 import jakarta.websocket.Session;
 import lombok.NonNull;
@@ -35,7 +34,6 @@ public class MexcWebSocketManager {
 
     @Autowired
     public MexcWebSocketManager(@Value("${mexc.api.websocketBaseUrl}") String baseWebsocketUrl,
-                                AppConfig appConfig,
                                 MexcWebSocketClient mexcWebSocketClient,
                                 MexcWebSocketStateService webSocketStateService) {
         this.baseWebsocketUrl = baseWebsocketUrl;
