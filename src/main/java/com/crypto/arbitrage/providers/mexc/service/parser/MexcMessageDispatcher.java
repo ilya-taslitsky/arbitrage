@@ -4,6 +4,7 @@ import com.crypto.arbitrage.providers.mexc.model.account.MexcAccountBalance;
 import com.crypto.arbitrage.providers.mexc.model.common.MexcSubscriptionResp;
 import com.crypto.arbitrage.providers.mexc.model.depth.MexcDepthData;
 import com.crypto.arbitrage.providers.mexc.model.order.MexcExecutionInfo;
+import com.crypto.arbitrage.providers.mexc.model.order.MexcOrderInfo;
 import com.crypto.arbitrage.providers.mexc.model.trade.MexcTradeStream;
 import com.crypto.arbitrage.service.messaging.PublishSubscribeService;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -103,13 +104,13 @@ public class MexcMessageDispatcher {
                 dataProcessor.process(mexcAccountBalance);
             }
             case ORDER_UPDATES_CHANNEL -> {
-                //MexcOrdewrUpdate mexcOrderUpdate;
-                //try {
-                //    mexcOrderUpdate = objectMapper.treeToValue(root, MexcOrderUpdate.class);
-                //} catch (JsonProcessingException e) {
-                //    throw new RuntimeException(e);
-                //}
-                //dataProcessor.process(mexcOrderUpdate);
+                MexcOrderInfo mexcOrderInfo;
+                try {
+                    mexcOrderInfo = objectMapper.treeToValue(root, MexcOrderInfo.class);
+                } catch (JsonProcessingException e) {
+                    throw new RuntimeException(e);
+                }
+                dataProcessor.process(mexcOrderInfo);
             }
             case ACCOUNT_DEALS_CHANNEL -> {
                 MexcExecutionInfo mexcExecutionInfo;

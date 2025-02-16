@@ -14,8 +14,7 @@ import com.crypto.arbitrage.providers.mexc.model.event.MexcWebSocketSessionStatu
 import com.crypto.arbitrage.providers.mexc.model.instrument.MexcInstrumentEvent;
 import com.crypto.arbitrage.providers.mexc.model.instrument.MexcSubscribedInstrumentEvent;
 import com.crypto.arbitrage.providers.mexc.model.instrument.MexcUnsubscribedInstrumentEvent;
-import com.crypto.arbitrage.providers.mexc.model.order.MexcExecutionEvent;
-import com.crypto.arbitrage.providers.mexc.model.order.MexcExecutionInfo;
+import com.crypto.arbitrage.providers.mexc.model.order.*;
 import com.crypto.arbitrage.providers.mexc.model.trade.MexcTradeStream;
 import com.crypto.arbitrage.service.messaging.PublishSubscribeService;
 import lombok.RequiredArgsConstructor;
@@ -53,11 +52,15 @@ public class MexcDataProcessor {
             processBalance(mexcAccountBalance);
         } else if (mexcData instanceof MexcExecutionInfo mexcExecutionInfo) {
             processExecutionInfo(mexcExecutionInfo);
-        }
-
-        else {
+        } else if (mexcData instanceof MexcOrderInfo mexcOrderInfo) {
+            processOrderInfo(mexcOrderInfo);
+        } else {
             log.warn("Unknown MexcData type: {}", mexcData);
         }
+    }
+
+    private void processOrderInfo(MexcOrderInfo orderInfo) {
+        // TODO: implement
     }
 
     private void processExecutionInfo(MexcExecutionInfo mexcExecutionInfo) {
@@ -71,7 +74,7 @@ public class MexcDataProcessor {
 
     private void processBalance(MexcAccountBalance mexcAccountBalance) {
         BalanceChangeType changedType = mexcAccountBalance.getAccountUpdates().getChangedType();
-
+        log.info("Processing balance update: {}", mexcAccountBalance);
         // only update balance if it's a deposit, withdraw or balance changes after an order
         if (BalanceChangeType.ENTRUST.equals(changedType) || BalanceChangeType.WITHDRAW.equals(changedType) || BalanceChangeType.DEPOSIT.equals(changedType)) {
             BalanceInfoBuilder balanceInfoBuilder = new BalanceInfoBuilder();
