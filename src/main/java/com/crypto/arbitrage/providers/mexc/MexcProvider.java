@@ -103,10 +103,13 @@ public class MexcProvider extends ExternalLiveBaseProvider {
                 .setMultiplier(1.)
                 .setSizeMultiplier(sizeMultiplier);
 
+        InstrumentInfo instrumentInfo = builder.build();
+
         // TODO: possibility of data inconsistency if we put instrument info to the map before getting message from server that we subscribed
-        subscribedInstrumentInfo.put(subscribeInfo.symbol, builder.build());
+        subscribedInstrumentInfo.put(subscribeInfo.symbol, instrumentInfo);
         mexcWebSocketManager.subscribeToTopic(subscribeInfo.symbol);
-        publisher.publishEvent(new MexcSubscribedInstrumentEvent(builder.build()));
+        publisher.publishEvent(new MexcSubscribedInstrumentEvent(instrumentInfo));
+        instrumentListeners.forEach(listener -> listener.onInstrumentAdded(instrumentInfo.symbol, instrumentInfo));
     }
 
     @Override
@@ -122,6 +125,7 @@ public class MexcProvider extends ExternalLiveBaseProvider {
         subscribedInstrumentInfo.remove(symbol);
         mexcWebSocketManager.unsubscribeFromTopic(symbol);
         publisher.publishEvent(new MexcUnsubscribedInstrumentEvent(symbol));
+        instrumentListeners.forEach(listener -> listener.onInstrumentRemoved(symbol));
     }
 
     @Override
