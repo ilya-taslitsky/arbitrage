@@ -13,9 +13,8 @@ import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
 import velox.api.layer1.Layer1ApiDataListener;
 import velox.api.layer1.Layer1ApiInstrumentListener;
-import velox.api.layer1.data.InstrumentInfo;
-import velox.api.layer1.data.MarketMode;
-import velox.api.layer1.data.TradeInfo;
+import velox.api.layer1.Layer1ApiTradingListener;
+import velox.api.layer1.data.*;
 import velox.api.layer1.layers.utils.OrderBook;
 
 import java.util.Map;
@@ -24,7 +23,7 @@ import java.util.Map;
 @Scope("prototype")
 @Slf4j
 @RequiredArgsConstructor
-public class CEXEngine  implements Layer1ApiDataListener, Layer1ApiInstrumentListener {
+public class CEXEngine  implements Layer1ApiDataListener, Layer1ApiInstrumentListener{
     @Getter
     private volatile int bidPrice;
     @Getter

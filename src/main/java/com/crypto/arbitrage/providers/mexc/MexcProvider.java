@@ -1,10 +1,15 @@
 package com.crypto.arbitrage.providers.mexc;
 
 
+import com.crypto.arbitrage.providers.mexc.model.account.MexcBalanceEvent;
 import com.crypto.arbitrage.providers.mexc.model.event.MexcDepthEvent;
 import com.crypto.arbitrage.providers.mexc.model.event.MexcExchangeEvent;
 import com.crypto.arbitrage.providers.mexc.model.event.MexcTradeEvent;
 import com.crypto.arbitrage.providers.mexc.model.event.MexcWebSocketSessionStatusEvent;
+import com.crypto.arbitrage.providers.mexc.model.instrument.MexcInstrumentEvent;
+import com.crypto.arbitrage.providers.mexc.model.instrument.MexcSubscribedInstrumentEvent;
+import com.crypto.arbitrage.providers.mexc.model.instrument.MexcUnsubscribedInstrumentEvent;
+import com.crypto.arbitrage.providers.mexc.model.order.MexcExecutionEvent;
 import com.crypto.arbitrage.providers.mexc.model.order.MexcLoginData;
 import com.crypto.arbitrage.providers.mexc.model.order.MexcNewOrderReq;
 import com.crypto.arbitrage.providers.mexc.service.MexcOrderService;
@@ -12,6 +17,7 @@ import com.crypto.arbitrage.providers.mexc.websocket.MexcWebSocketManager;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Component;
@@ -19,29 +25,30 @@ import velox.api.layer0.annotations.Layer0LiveModule;
 import velox.api.layer0.live.ExternalLiveBaseProvider;
 import velox.api.layer1.annotations.Layer1ApiVersion;
 import velox.api.layer1.annotations.Layer1ApiVersionValue;
-import velox.api.layer1.data.LoginData;
-import velox.api.layer1.data.OrderSendParameters;
-import velox.api.layer1.data.OrderUpdateParameters;
-import velox.api.layer1.data.SubscribeInfo;
+import velox.api.layer1.data.*;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
-@Layer1ApiVersion(Layer1ApiVersionValue.VERSION2)
-@Layer0LiveModule(shortName = "MEXC", fullName = "MEXC-Provider")
 public class MexcProvider extends ExternalLiveBaseProvider {
 
     @Getter
-    private final AtomicBoolean isSessionActive = new AtomicBoolean(false);
+    private final AtomicBoolean isLoggedIn = new AtomicBoolean(false);
 
     private final MexcOrderService mexcOrderService;
+    public final String NAME = "MEXC";
     private final MexcWebSocketManager mexcWebSocketManager;
+    private final Map<String, InstrumentInfo> subscribedInstrumentInfo = new HashMap<>();
+    private final ApplicationEventPublisher publisher;
+
 
     @Override
     public void login(@NonNull LoginData loginData) {
-        if (isSessionActive.get()) {
+        if (isLoggedIn.get()) {
             log.warn("Method login: MexcWebSocket session is already active.");
             return;
         }
@@ -72,7 +79,7 @@ public class MexcProvider extends ExternalLiveBaseProvider {
 
     @Override
     public void subscribe(@NonNull SubscribeInfo subscribeInfo) {
-        if (!isSessionActive.get()) {
+        if (!isLoggedIn.get()) {
             log.warn("Method subscribe: MexcWebSocket session is not active.");
             return;
         }
@@ -80,12 +87,41 @@ public class MexcProvider extends ExternalLiveBaseProvider {
             log.error("SubscribeInfo symbol is null.");
             return;
         }
+        if (subscribedInstrumentInfo.containsKey(subscribeInfo.symbol)) {
+            log.warn("Already subscribed to symbol {}", subscribeInfo.symbol);
+            return;
+        }
+
+        SubscribeInfoCrypto subscribeInfoCrypto = (SubscribeInfoCrypto) subscribeInfo;
+        double sizeMultiplier = subscribeInfoCrypto.sizeMultiplier;
+        double pips = subscribeInfoCrypto.pips;
+        InstrumentInfo.Builder builder = new InstrumentInfo.Builder()
+                .setSymbol(subscribeInfo.symbol)
+                .setExchange(NAME)
+                .setFullName(subscribeInfo.symbol)
+                .setPips(pips)
+                .setMultiplier(1.)
+                .setSizeMultiplier(sizeMultiplier);
+
+        // TODO: possibility of data inconsistency if we put instrument info to the map before getting message from server that we subscribed
+        subscribedInstrumentInfo.put(subscribeInfo.symbol, builder.build());
         mexcWebSocketManager.subscribeToTopic(subscribeInfo.symbol);
+        publisher.publishEvent(new MexcSubscribedInstrumentEvent(builder.build()));
     }
 
     @Override
     public void unsubscribe(@NonNull String symbol) {
+        if (!isLoggedIn.get()) {
+            log.warn("Method unsubscribe: MexcWebSocket session is not active.");
+            return;
+        }
+        if (!subscribedInstrumentInfo.containsKey(symbol)) {
+            log.warn("Not subscribed to symbol {}", symbol);
+            return;
+        }
+        subscribedInstrumentInfo.remove(symbol);
         mexcWebSocketManager.unsubscribeFromTopic(symbol);
+        publisher.publishEvent(new MexcUnsubscribedInstrumentEvent(symbol));
     }
 
     @Override
@@ -105,9 +141,9 @@ public class MexcProvider extends ExternalLiveBaseProvider {
 
     @EventListener
     public void onWebSocketSessionStatusEvent(@NonNull MexcWebSocketSessionStatusEvent event) {
-        boolean isActive = isSessionActive.get();
+        boolean isActive = isLoggedIn.get();
         if (isActive != event.isActive()) {
-            isSessionActive.set(event.isActive());
+            isLoggedIn.set(event.isActive());
             log.info("WebSocket session is now {}", event.isActive() ? "active" : "inactive");
         }
     }
@@ -128,8 +164,19 @@ public class MexcProvider extends ExternalLiveBaseProvider {
                     depthEvent.isBid(),
                     depthEvent.getPrice(),
                     depthEvent.getSize()));
+        } else if (event instanceof MexcBalanceEvent balanceEvent) {
+            log.info("Method handleMexcEvent: MexcBalanceEvent {}", balanceEvent);
+            tradingListeners.forEach(listener -> listener.onBalance(
+                    balanceEvent.getBalanceInfo()));
+        } else if (event instanceof MexcExecutionEvent executionEvent) {
+            log.info("Method handleMexcEvent: MexcExecutionEvent {}", executionEvent.getExecutionInfo());
+            tradingListeners.forEach(listener -> listener.onOrderExecuted(
+                    executionEvent.getExecutionInfo()));
+        } else {
+            log.warn("Method handleMexcEvent: Unsupported event type {}", event.getClass());
         }
     }
+
 
     private boolean isLoginDataValid(@NonNull LoginData loginData) {
         return loginData instanceof MexcLoginData mexcLoginData &&

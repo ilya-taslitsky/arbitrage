@@ -12,8 +12,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 public class MexcDepthEntry {
     @JsonProperty("p")
-    private String price;
+    private double price;
 
     @JsonProperty("v")
-    private String quantity;
+    private double quantity;
 }

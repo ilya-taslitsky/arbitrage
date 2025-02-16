@@ -15,11 +15,11 @@ public class MexcTradeDeal {
     private int tradeType;   // 1 = buy, 2 = sell
 
     @JsonProperty("p")
-    private String price;
+    private double price;
 
     @JsonProperty("t")
     private long dealTime;
 
     @JsonProperty("v")
-    private String quantity;
+    private double quantity;
 }

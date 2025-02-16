@@ -1,8 +1,11 @@
 package com.crypto.arbitrage.providers.mexc.service.parser;
 
+import com.crypto.arbitrage.providers.mexc.model.account.MexcAccountBalance;
 import com.crypto.arbitrage.providers.mexc.model.common.MexcSubscriptionResp;
 import com.crypto.arbitrage.providers.mexc.model.depth.MexcDepthData;
+import com.crypto.arbitrage.providers.mexc.model.order.MexcExecutionInfo;
 import com.crypto.arbitrage.providers.mexc.model.trade.MexcTradeStream;
+import com.crypto.arbitrage.service.messaging.PublishSubscribeService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -16,9 +19,14 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 public class MexcMessageDispatcher {
+    private final PublishSubscribeService publishSubscribeService;
 
     private static final String DEAL_CHANNEL = "public.deals.v3.api";
     private static final String DEPTH_CHANNEL = "public.limit.depth.v3.api";
+    private static final String BALANCE_UPDATES_CHANNEL = "private.account.v3.api";
+    private static final String ORDER_UPDATES_CHANNEL = "private.orders.v3.api";
+    private static final String ACCOUNT_DEALS_CHANNEL = "private.deals.v3.api";
+
 
     private final ObjectMapper objectMapper;
     private final MexcDataProcessor dataProcessor;
@@ -69,6 +77,7 @@ public class MexcMessageDispatcher {
                 try {
                     mexcTradeStream = objectMapper.treeToValue(root, MexcTradeStream.class);
                 } catch (JsonProcessingException e) {
+                    log.error("Error parsing trade stream: {}", message, e);
                     throw new RuntimeException(e);
                 }
                 dataProcessor.process(mexcTradeStream);
@@ -78,9 +87,38 @@ public class MexcMessageDispatcher {
                 try {
                     mexcDepthData = objectMapper.treeToValue(root.path("d"), MexcDepthData.class);
                 } catch (JsonProcessingException e) {
+                    log.error("Error parsing depth data: {}", message, e);
                     throw new RuntimeException(e);
                 }
                 dataProcessor.process(mexcDepthData);
+            }
+            case BALANCE_UPDATES_CHANNEL -> {
+                MexcAccountBalance mexcAccountBalance;
+                try {
+                    mexcAccountBalance = objectMapper.treeToValue(root, MexcAccountBalance.class);
+                } catch (JsonProcessingException e) {
+                    log.error("Error parsing account balance: {}", message, e);
+                    throw new RuntimeException(e);
+                }
+                dataProcessor.process(mexcAccountBalance);
+            }
+            case ORDER_UPDATES_CHANNEL -> {
+                //MexcOrdewrUpdate mexcOrderUpdate;
+                //try {
+                //    mexcOrderUpdate = objectMapper.treeToValue(root, MexcOrderUpdate.class);
+                //} catch (JsonProcessingException e) {
+                //    throw new RuntimeException(e);
+                //}
+                //dataProcessor.process(mexcOrderUpdate);
+            }
+            case ACCOUNT_DEALS_CHANNEL -> {
+                MexcExecutionInfo mexcExecutionInfo;
+                try {
+                    mexcExecutionInfo = objectMapper.treeToValue(root, MexcExecutionInfo.class);
+                } catch (JsonProcessingException e) {
+                    throw new RuntimeException(e);
+                }
+                dataProcessor.process(mexcExecutionInfo);
             }
             default -> log.warn("Unrecognized channel identifier: {} in message: {}", identifier, message);
         }

@@ -1,7 +1,10 @@
 package com.crypto.arbitrage.providers.mexc.websocket;
 
+import com.crypto.arbitrage.data.TopicMessage;
+import com.crypto.arbitrage.providers.mexc.model.common.MexcSubscriptionResp;
 import com.crypto.arbitrage.providers.mexc.model.event.MexcWebSocketSessionStatusEvent;
 import com.crypto.arbitrage.providers.mexc.service.parser.MexcMessageDispatcher;
+import com.crypto.arbitrage.service.messaging.MessageHandler;
 import jakarta.annotation.PreDestroy;
 import jakarta.websocket.*;
 import lombok.Getter;
@@ -17,13 +20,15 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
 @Service
 @ClientEndpoint
-public class MexcWebSocketClient {
+public class MexcWebSocketClient  {
 
     private final static String PONG_MESSAGE = "\"msg\":\"PONG\"";
 
@@ -122,6 +127,8 @@ public class MexcWebSocketClient {
         }
     }
 
+
+    // TODO: investigate when this method triggers
     @OnError
     public void onError(Throwable thr) {
         Session currentSession = session.get();
@@ -140,6 +147,7 @@ public class MexcWebSocketClient {
             log.warn("Method onError: Session is already null.");
         }
         log.error("Method onError: MexcWebSocket error: {}", thr.getMessage());
+
         publisher.publishEvent(new MexcWebSocketSessionStatusEvent(false));
     }
 

@@ -2,6 +2,7 @@ package com.crypto.arbitrage.providers.mexc.websocket;
 
 import com.crypto.arbitrage.providers.mexc.common.MexcSignatureUtil;
 import com.crypto.arbitrage.providers.mexc.model.event.MexcSubscriptionEvent;
+import com.crypto.arbitrage.providers.mexc.model.event.MexcWebSocketSessionStatusEvent;
 import com.crypto.arbitrage.providers.mexc.model.order.MexcLoginData;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -12,6 +13,7 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
 import org.springframework.http.ResponseEntity;
 import org.springframework.lang.NonNull;
@@ -35,6 +37,7 @@ import java.util.stream.Collectors;
 public class MexcWebSocketStateService {
 
     private final int MAX_PING_FAILURES = 3;
+    private final int ACCOUNT_SUBSCRIPTIONS_COUNT = 3; // account_wallet, deals, orders
     private static final long PING_INTERVAL = 30;
     private static final long KEEPALIVE_INTERVAL = 30 * 60; // 30 minutes in seconds
     private static final long RECONNECT_DELAY_SECONDS = 10;
@@ -49,6 +52,7 @@ public class MexcWebSocketStateService {
 
     private final String apiUrl;
     private final RestClient restClient;
+    private final ApplicationEventPublisher publisher;
     private final String webSocketBaseUrl;
     private final ObjectMapper objectMapper;
     private ScheduledExecutorService pingExecutor;
@@ -71,8 +75,10 @@ public class MexcWebSocketStateService {
                                      @Value("${mexc.api.websocketBaseUrl}") String webSocketBaseUrl,
                                      MexcWebSocketClient webSocketClient,
                                      RestClient restClient,
-                                     ObjectMapper objectMapper) {
+                                     ObjectMapper objectMapper,
+                                     ApplicationEventPublisher publisher) {
         this.apiUrl = apiUrl;
+        this.publisher = publisher;
         this.objectMapper = objectMapper;
         this.webSocketClient = webSocketClient;
         this.webSocketBaseUrl = webSocketBaseUrl;
@@ -146,6 +152,7 @@ public class MexcWebSocketStateService {
     }
 
     public void onError() {
+        subscriptions.clear();
         shutdownAndAwaitTermination(pingExecutor);
         shutdownAndAwaitTermination(keepaliveExecutor);
         shutdownAndAwaitTermination(heartbeatExecutor);
@@ -387,6 +394,10 @@ public class MexcWebSocketStateService {
     @EventListener
     public void onSubscriptionEvent(@NonNull MexcSubscriptionEvent event) {
         subscriptions.add(event.getChannel());
+
+        if (subscriptions.size() == ACCOUNT_SUBSCRIPTIONS_COUNT) {
+            publisher.publishEvent(new MexcWebSocketSessionStatusEvent(true));
+        }
     }
 
     @PreDestroy
