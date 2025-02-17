@@ -22,14 +22,5 @@ public class MexcDepthData implements MexcData {
 
     @JsonProperty("e")
     private String event;
-
-    @JsonProperty("r")
-    private long version;
-
-    @JsonProperty("s")
-    private String symbol;
-
-    @JsonProperty("t")
-    private long timestamp;
 }
 

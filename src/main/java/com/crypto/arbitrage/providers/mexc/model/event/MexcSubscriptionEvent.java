@@ -5,6 +5,6 @@ import lombok.Setter;
 
 @Setter
 @Getter
-public class MexcSubscriptionEvent implements MexcExchangeEvent {
+public class MexcSubscriptionEvent {
     private String channel;
 }

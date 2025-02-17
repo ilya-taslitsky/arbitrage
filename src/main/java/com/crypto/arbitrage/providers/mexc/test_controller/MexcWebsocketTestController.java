@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import velox.api.layer1.data.SubscribeInfo;
+import velox.api.layer1.data.SubscribeInfoCrypto;
 
 
 @RestController
@@ -45,8 +46,8 @@ public class MexcWebsocketTestController {
     private final MexcWebSocketManager mexcWebSocketManager;
 
     @PostMapping(TRADE_STREAMS)
-    public ResponseEntity<?> subscribeToTradeStream(@RequestParam String req) {
-        SubscribeInfo subscribeInfo = new SubscribeInfo(req, null, null);
+    public ResponseEntity<?> subscribeToTradeStream(@RequestParam String req, @RequestParam double pips, @RequestParam double sizeMultiplier) {
+        SubscribeInfo subscribeInfo = new SubscribeInfoCrypto(req, null, null, pips, sizeMultiplier);
 
         mexcProvider.subscribe(subscribeInfo);
         return new ResponseEntity<>(HttpStatus.OK);
@@ -59,8 +60,8 @@ public class MexcWebsocketTestController {
     }
 
     @PostMapping(PARTIAL_BOOK_DEPTH_STREAM)
-    public ResponseEntity<?> subscribeToPartialBookDepthStream(@RequestParam String req) {
-        SubscribeInfo subscribeInfo = new SubscribeInfo(req, null, null);
+    public ResponseEntity<?> subscribeToPartialBookDepthStream(@RequestParam String req, @RequestParam double pips, @RequestParam double sizeMultiplier) {
+        SubscribeInfo subscribeInfo = new SubscribeInfoCrypto(req, null, null, pips, sizeMultiplier);
         mexcProvider.subscribe(subscribeInfo);
         return new ResponseEntity<>(HttpStatus.OK);
     }
