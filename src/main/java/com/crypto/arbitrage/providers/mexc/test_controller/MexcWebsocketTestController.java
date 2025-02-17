@@ -46,8 +46,8 @@ public class MexcWebsocketTestController {
     private final MexcWebSocketManager mexcWebSocketManager;
 
     @PostMapping(TRADE_STREAMS)
-    public ResponseEntity<?> subscribeToTradeStream(@RequestParam String req) {
-        SubscribeInfo subscribeInfo = new SubscribeInfo(req, null, null);
+    public ResponseEntity<?> subscribeToTradeStream(@RequestParam String req, @RequestParam double pips, @RequestParam double sizeMultiplier) {
+        SubscribeInfo subscribeInfo = new SubscribeInfoCrypto(req, null, null, pips, sizeMultiplier);
 
         mexcProvider.subscribe(subscribeInfo);
         return new ResponseEntity<>(HttpStatus.OK);

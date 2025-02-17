@@ -2,9 +2,10 @@ package com.crypto.arbitrage.providers.mexc.service.parser;
 
 import com.crypto.arbitrage.providers.mexc.model.account.MexcAccountBalance;
 import com.crypto.arbitrage.providers.mexc.model.common.MexcSubscriptionResp;
+import com.crypto.arbitrage.providers.mexc.model.depth.BookDepthResponse;
 import com.crypto.arbitrage.providers.mexc.model.depth.MexcDepthData;
 import com.crypto.arbitrage.providers.mexc.model.order.MexcExecutionInfo;
-import com.crypto.arbitrage.providers.mexc.model.order.MexcOrderInfo;
+import com.crypto.arbitrage.providers.mexc.model.order.MexcOrderResponse;
 import com.crypto.arbitrage.providers.mexc.model.trade.MexcTradeStream;
 import com.crypto.arbitrage.service.messaging.PublishSubscribeService;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -84,14 +85,14 @@ public class MexcMessageDispatcher {
                 dataProcessor.process(mexcTradeStream);
             }
             case DEPTH_CHANNEL -> {
-                MexcDepthData mexcDepthData;
+                BookDepthResponse bookDepthResponse;
                 try {
-                    mexcDepthData = objectMapper.treeToValue(root.path("d"), MexcDepthData.class);
+                    bookDepthResponse = objectMapper.treeToValue(root, BookDepthResponse.class);
                 } catch (JsonProcessingException e) {
                     log.error("Error parsing depth data: {}", message, e);
                     throw new RuntimeException(e);
                 }
-                dataProcessor.process(mexcDepthData);
+                dataProcessor.process(bookDepthResponse);
             }
             case BALANCE_UPDATES_CHANNEL -> {
                 MexcAccountBalance mexcAccountBalance;
@@ -104,13 +105,13 @@ public class MexcMessageDispatcher {
                 dataProcessor.process(mexcAccountBalance);
             }
             case ORDER_UPDATES_CHANNEL -> {
-                MexcOrderInfo mexcOrderInfo;
+                MexcOrderResponse mexcOrderResponse;
                 try {
-                    mexcOrderInfo = objectMapper.treeToValue(root, MexcOrderInfo.class);
+                    mexcOrderResponse = objectMapper.treeToValue(root, MexcOrderResponse.class);
                 } catch (JsonProcessingException e) {
                     throw new RuntimeException(e);
                 }
-                dataProcessor.process(mexcOrderInfo);
+                dataProcessor.process(mexcOrderResponse);
             }
             case ACCOUNT_DEALS_CHANNEL -> {
                 MexcExecutionInfo mexcExecutionInfo;

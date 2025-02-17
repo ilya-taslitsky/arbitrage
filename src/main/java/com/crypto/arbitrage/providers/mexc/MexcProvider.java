@@ -6,12 +6,12 @@ import com.crypto.arbitrage.providers.mexc.model.event.MexcDepthEvent;
 import com.crypto.arbitrage.providers.mexc.model.event.MexcExchangeEvent;
 import com.crypto.arbitrage.providers.mexc.model.event.MexcTradeEvent;
 import com.crypto.arbitrage.providers.mexc.model.event.MexcWebSocketSessionStatusEvent;
-import com.crypto.arbitrage.providers.mexc.model.instrument.MexcInstrumentEvent;
 import com.crypto.arbitrage.providers.mexc.model.instrument.MexcSubscribedInstrumentEvent;
 import com.crypto.arbitrage.providers.mexc.model.instrument.MexcUnsubscribedInstrumentEvent;
 import com.crypto.arbitrage.providers.mexc.model.order.MexcExecutionEvent;
 import com.crypto.arbitrage.providers.mexc.model.order.MexcLoginData;
 import com.crypto.arbitrage.providers.mexc.model.order.MexcNewOrderReq;
+import com.crypto.arbitrage.providers.mexc.model.order.MexcOrderInfoEvent;
 import com.crypto.arbitrage.providers.mexc.service.MexcOrderService;
 import com.crypto.arbitrage.providers.mexc.websocket.MexcWebSocketManager;
 import lombok.Getter;
@@ -27,6 +27,7 @@ import velox.api.layer1.annotations.Layer1ApiVersion;
 import velox.api.layer1.annotations.Layer1ApiVersionValue;
 import velox.api.layer1.data.*;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -35,12 +36,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Component
 @RequiredArgsConstructor
 public class MexcProvider extends ExternalLiveBaseProvider {
-
+    public static final String NAME = "MEXC";
     @Getter
     private final AtomicBoolean isLoggedIn = new AtomicBoolean(false);
-
     private final MexcOrderService mexcOrderService;
-    public final String NAME = "MEXC";
     private final MexcWebSocketManager mexcWebSocketManager;
     private final Map<String, InstrumentInfo> subscribedInstrumentInfo = new HashMap<>();
     private final ApplicationEventPublisher publisher;
@@ -63,7 +62,7 @@ public class MexcProvider extends ExternalLiveBaseProvider {
 
     @Override
     public String getSource() {
-        return "Mexc provider";
+        return NAME;
     }
 
     @Override
@@ -95,15 +94,7 @@ public class MexcProvider extends ExternalLiveBaseProvider {
         SubscribeInfoCrypto subscribeInfoCrypto = (SubscribeInfoCrypto) subscribeInfo;
         double sizeMultiplier = subscribeInfoCrypto.sizeMultiplier;
         double pips = subscribeInfoCrypto.pips;
-        InstrumentInfo.Builder builder = new InstrumentInfo.Builder()
-                .setSymbol(subscribeInfo.symbol)
-                .setExchange(NAME)
-                .setFullName(subscribeInfo.symbol)
-                .setPips(pips)
-                .setMultiplier(1.)
-                .setSizeMultiplier(sizeMultiplier);
-
-        InstrumentInfo instrumentInfo = builder.build();
+        InstrumentInfo instrumentInfo = new InstrumentInfo(subscribeInfoCrypto.symbol, NAME, null, pips, 1., subscribeInfo.symbol, true, sizeMultiplier, true);
 
         // TODO: possibility of data inconsistency if we put instrument info to the map before getting message from server that we subscribed
         subscribedInstrumentInfo.put(subscribeInfo.symbol, instrumentInfo);
@@ -176,6 +167,10 @@ public class MexcProvider extends ExternalLiveBaseProvider {
             log.info("Method handleMexcEvent: MexcExecutionEvent {}", executionEvent.getExecutionInfo());
             tradingListeners.forEach(listener -> listener.onOrderExecuted(
                     executionEvent.getExecutionInfo()));
+        } else if (event instanceof MexcOrderInfoEvent mexcOrderInfoEvent) {
+            log.info("Method handleMexcEvent: MexcOrderInfoEvent {}", mexcOrderInfoEvent.getOrderInfoUpdate());
+            tradingListeners.forEach(listener -> listener.onOrderUpdated(
+                    mexcOrderInfoEvent.getOrderInfoUpdate()));
         } else {
             log.warn("Method handleMexcEvent: Unsupported event type {}", event.getClass());
         }
