@@ -1,7 +1,7 @@
 package com.crypto.arbitrage.providers.mexc.websocket;
 
 import com.crypto.arbitrage.providers.mexc.model.event.MexcWebSocketSessionStatusEvent;
-import com.crypto.arbitrage.providers.mexc.service.parser.MexcMessageDispatcher;
+import com.crypto.arbitrage.providers.mexc.service.messages.MexcMessageDispatcher;
 import jakarta.annotation.PreDestroy;
 import jakarta.websocket.*;
 import java.io.IOException;

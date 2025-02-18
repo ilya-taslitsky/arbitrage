@@ -1,13 +1,11 @@
 package com.crypto.arbitrage.providers.mexc.test_controller;
 
 import com.crypto.arbitrage.providers.mexc.model.order.MexcCancelOrderReq;
-import com.crypto.arbitrage.providers.mexc.model.order.MexcCancelOrderResp;
 import com.crypto.arbitrage.providers.mexc.model.order.MexcNewOrderReq;
-import com.crypto.arbitrage.providers.mexc.model.order.MexcNewOrderResp;
 import com.crypto.arbitrage.providers.mexc.service.MexcOrderService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -22,18 +20,14 @@ public class MexcTestController {
   private final MexcOrderService mexcOrderService;
 
   @PostMapping(ORDER_URL)
-  public ResponseEntity<?> createOrder(@Valid @ModelAttribute MexcNewOrderReq req) {
-    MexcNewOrderResp order = mexcOrderService.sendOrder(req);
-    return ResponseEntity.ok(order);
+  @ResponseStatus(code = HttpStatus.CREATED)
+  public void createOrder(@Valid @ModelAttribute MexcNewOrderReq req) {
+    mexcOrderService.sendOrder(req);
   }
 
   @DeleteMapping(ORDER_URL)
-  public ResponseEntity<?> cancelOrder(@Valid @ModelAttribute MexcCancelOrderReq req) {
-    MexcCancelOrderResp mexcCancelOrderResponse = mexcOrderService.cancelOrder(req);
-    if (mexcCancelOrderResponse != null) {
-      return ResponseEntity.ok(mexcCancelOrderResponse);
-    } else {
-      return ResponseEntity.badRequest().build();
-    }
+  @ResponseStatus(code = HttpStatus.NO_CONTENT)
+  public void cancelOrder(@Valid @ModelAttribute MexcCancelOrderReq req) {
+    mexcOrderService.cancelOrder(req);
   }
 }

@@ -1,4 +1,4 @@
-package com.crypto.arbitrage.providers.mexc.service.parser;
+package com.crypto.arbitrage.providers.mexc.service.messages;
 
 import com.crypto.arbitrage.providers.mexc.MexcProvider;
 import com.crypto.arbitrage.providers.mexc.model.MexcData;

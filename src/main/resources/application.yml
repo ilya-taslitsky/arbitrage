@@ -1,0 +1,22 @@
+# Spring
+spring:
+  application.name: arbitrage
+  datasource:
+    url: jdbc:postgresql://${DATABASE_HOST:localhost}:5432/arbitrage
+    username: ${DATABASE_USER:postgres}
+    password: ${DATABASE_PASSWORD:mysecretpassword}
+    hikari.maximum-pool-size: 10
+    hikari.idle-timeout: 30000
+    hikari.pool-name: cryptoConnectionPool
+  main.allow-circular-references: true
+
+# Logging
+logging.level.root: INFO
+
+# Security
+security.management.token: ${SECURITY_MANAGER_TOKEN:nDal3epdl432}
+
+# MEXC
+mexc.api:
+  url: https://api.mexc.com
+  websocketBaseUrl: wss://wbs.mexc.com/ws
