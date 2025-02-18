@@ -10,48 +10,30 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-
 @RestController
-@RequestMapping("/api/v1")
+@RequestMapping("/api/v1/mexc")
 @RequiredArgsConstructor
 public class MexcTestController {
 
-    private final static String ACCOUNT_URL = "/account";
-    private final static String ORDER_URL = "/order";
-    private final static String WITHDRAW_URL = "/withdraw";
+  private static final String ORDER_URL = "/order";
+  private static final String ACCOUNT_URL = "/account";
+  private static final String WITHDRAW_URL = "/withdraw";
 
-    private final MexcOrderService mexcOrderService;
-//    private final MexcWithdrawService mexcWithdrawService;
-//    private final MexcAccountServiceImpl mexcAccountService;
-//
-//    @GetMapping(ACCOUNT_URL)
-//    public ResponseEntity<?> accountInfo(){
-//        return ResponseEntity.ok(mexcAccountService.getAccountInfo());
-//    }
+  private final MexcOrderService mexcOrderService;
 
-    @PostMapping(ORDER_URL)
-    public ResponseEntity<?> createOrder(@Valid @ModelAttribute MexcNewOrderReq req) {
-        MexcNewOrderResp order = mexcOrderService.sendOrder(req);
-        return ResponseEntity.ok(order);
+  @PostMapping(ORDER_URL)
+  public ResponseEntity<?> createOrder(@Valid @ModelAttribute MexcNewOrderReq req) {
+    MexcNewOrderResp order = mexcOrderService.sendOrder(req);
+    return ResponseEntity.ok(order);
+  }
+
+  @DeleteMapping(ORDER_URL)
+  public ResponseEntity<?> cancelOrder(@Valid @ModelAttribute MexcCancelOrderReq req) {
+    MexcCancelOrderResp mexcCancelOrderResponse = mexcOrderService.cancelOrder(req);
+    if (mexcCancelOrderResponse != null) {
+      return ResponseEntity.ok(mexcCancelOrderResponse);
+    } else {
+      return ResponseEntity.badRequest().build();
     }
-
-    @DeleteMapping(ORDER_URL)
-    public ResponseEntity<?> cancelOrder(@Valid @ModelAttribute MexcCancelOrderReq req) {
-        MexcCancelOrderResp mexcCancelOrderResponse = mexcOrderService.cancelOrder(req);
-        if (mexcCancelOrderResponse != null) {
-            return ResponseEntity.ok(mexcCancelOrderResponse);
-        } else {
-            return ResponseEntity.badRequest().build();
-        }
-    }
-
-//    @PostMapping(WITHDRAW_URL)
-//    public ResponseEntity<?> withdraw(@Valid @ModelAttribute WithdrawRequest req) {
-//        WithdrawResponse withdraw = mexcWithdrawService.withdraw(req);
-//        if (withdraw != null) {
-//            return ResponseEntity.ok(withdraw);
-//        } else {
-//            return ResponseEntity.badRequest().build();
-//        }
-//    }
+  }
 }

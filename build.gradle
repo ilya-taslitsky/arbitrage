@@ -19,7 +19,7 @@ configurations {
     }
 }
 
-def gitLabPrivateToken= System.getenv("GITLAB_REPO_TOKEN")
+def gitLabPrivateToken = System.getenv("GITLAB_REPO_TOKEN")
 
 
 repositories {
@@ -56,6 +56,9 @@ dependencies {
     implementation group: 'com.bookmap.api', name: 'api-core', version: '7.6.0.1'
     implementation 'org.liquibase:liquibase-core'
     implementation 'com.zaxxer:HikariCP:4.0.3'
+
+    // Lib for Solana client
+    implementation 'com.mmorrell:solanaj:1.20.4'
 
     // ExchangePort dependencies
     implementation group: 'com.bookmap', name: 'exchange-port', version: '0.6.26'
