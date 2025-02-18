@@ -149,7 +149,6 @@ public class MexcWebSocketStateService {
   }
 
   public void onError() {
-    shutdownAndAwaitTerminationExecutors();
     scheduleReconnect();
   }
 
@@ -381,8 +380,8 @@ public class MexcWebSocketStateService {
         Executors.newSingleThreadScheduledExecutor(r -> new Thread(r, "HeartbeatExecutor"));
   }
 
-  private void shutdownAndAwaitTermination(ExecutorService executor) {
-    if (executor != null && !executor.isShutdown()) {
+  private void shutdownAndAwaitTermination(@NonNull ExecutorService executor) {
+    if (!executor.isShutdown()) {
       executor.shutdown();
       try {
         if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
