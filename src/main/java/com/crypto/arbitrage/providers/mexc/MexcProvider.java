@@ -1,5 +1,6 @@
 package com.crypto.arbitrage.providers.mexc;
 
+import com.crypto.arbitrage.providers.mexc.common.MexcMapper;
 import com.crypto.arbitrage.providers.mexc.model.account.MexcBalanceEvent;
 import com.crypto.arbitrage.providers.mexc.model.event.MexcDepthEvent;
 import com.crypto.arbitrage.providers.mexc.model.event.MexcExchangeEvent;
@@ -126,11 +127,14 @@ public class MexcProvider extends ExternalLiveBaseProvider {
 
   @Override
   public void sendOrder(@NonNull OrderSendParameters orderSendParameters) {
-    if (orderSendParameters instanceof MexcNewOrderReq mexcNewOrderReq) {
-      mexcOrderService.sendOrder(mexcNewOrderReq);
-      log.info("OrderSendParameters: {}", orderSendParameters);
+    if (orderSendParameters instanceof SimpleOrderSendParameters parameters) {
+      MexcNewOrderReq mexcNewOrderReq = MexcMapper.toMexcNewOrderReq(parameters);
+      mexcOrderService.sendOrder(MexcMapper.toMexcNewOrderReq(parameters));
+      log.info("OrderSendParameters: {}", mexcNewOrderReq);
     } else {
-      log.warn("OrderSendParameters must be of type NewOrderReq.");
+      log.warn(
+          "Method sendOrder: Unsupported orderSendParameters type {}",
+          orderSendParameters.getClass());
     }
   }
 
