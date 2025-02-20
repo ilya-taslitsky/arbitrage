@@ -9,7 +9,7 @@ version = '0.0.1-SNAPSHOT'
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(17)
+        languageVersion = JavaLanguageVersion.of(23)
     }
 }
 
@@ -19,7 +19,10 @@ configurations {
     }
 }
 
+def SAVA_VERSION = "1.17.26"
 def gitLabPrivateToken = System.getenv("GITLAB_REPO_TOKEN")
+def githubUsername = System.getenv("GITHUB_USERNAME")
+def githubToken = System.getenv("GITHUB_PERSONAL_ACCESS_TOKEN")
 
 
 repositories {
@@ -43,6 +46,20 @@ repositories {
             header(HttpHeaderAuthentication)
         }
     }
+    maven {
+        url = "https://maven.pkg.github.com/sava-software/sava"
+        credentials {
+            username = githubUsername
+            password = githubToken
+        }
+    }
+    maven {
+        url = "https://maven.pkg.github.com/comodal/json-iterator"
+        credentials {
+            username = githubUsername
+            password = githubToken
+        }
+    }
 }
 
 
@@ -56,6 +73,10 @@ dependencies {
     implementation group: 'com.bookmap.api', name: 'api-core', version: '7.6.0.1'
     implementation 'org.liquibase:liquibase-core'
     implementation 'com.zaxxer:HikariCP:4.0.3'
+
+    // Solana Sava dependencies
+    implementation "software.sava:sava-rpc:$SAVA_VERSION"
+    implementation "software.sava:sava-core:$SAVA_VERSION"
 
     // ExchangePort dependencies
     implementation group: 'com.bookmap', name: 'exchange-port', version: '0.6.26'
