@@ -14,21 +14,27 @@ public class OrcTestController {
   private static final String VERSION_URL = "/account";
   private static final String ALL_POOLS_INFO = "/pools/all";
   private static final String POOL_INFO = "/pools/{publicKey}";
+  private static final String SIMULATE_TRANSACTION = "/simulate-transaction";
 
   private final OrcProvider orcProvider;
 
   @GetMapping(VERSION_URL)
   public void getAccountInfo(@RequestParam String req) {
-    orcProvider.getAccountInfo(req);
+    orcProvider.getAccountInfoViaSolana(req);
   }
 
   @GetMapping(ALL_POOLS_INFO)
   public OrcAllPoolsInfoResp getAllPoolsInfo() {
-    return orcProvider.getAllPoolsInfo();
+    return orcProvider.getAllPoolsInfoViaOrcApi();
   }
 
   @GetMapping(POOL_INFO)
   public OrcPoolInfoResp getPoolInfo(@PathVariable String publicKey) {
-    return orcProvider.getPoolInfo(publicKey);
+    return orcProvider.getPoolInfoViaOrcApi(publicKey);
+  }
+
+  @GetMapping(SIMULATE_TRANSACTION)
+  public String simulateTransaction(@RequestParam String req) {
+    return orcProvider.simulateSwapTransaction(1);
   }
 }

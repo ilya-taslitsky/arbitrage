@@ -19,10 +19,11 @@ configurations {
     }
 }
 
+def SOLANA_PROGRAMS_VERSION = "1.18.1"
 def SAVA_VERSION = "1.17.26"
-def gitLabPrivateToken = System.getenv("GITLAB_REPO_TOKEN")
-def githubUsername = System.getenv("GITHUB_USERNAME")
-def githubToken = System.getenv("GITHUB_PERSONAL_ACCESS_TOKEN")
+def GITLAB_PRIVATE_TOKEN = System.getenv("GITLAB_REPO_TOKEN")
+def GITHUB_USERNAME = System.getenv("GITHUB_USERNAME")
+def GITHUB_TOKEN = System.getenv("GITHUB_PERSONAL_ACCESS_TOKEN")
 
 
 repositories {
@@ -39,7 +40,7 @@ repositories {
 
         credentials(HttpHeaderCredentials) {
             name = 'Private-Token'
-            value = gitLabPrivateToken
+            value = GITLAB_PRIVATE_TOKEN
             // Speak to Rok/addons team to get the read-only access token to the ExchangePort repo's package registry.
         }
         authentication {
@@ -49,15 +50,15 @@ repositories {
     maven {
         url = "https://maven.pkg.github.com/sava-software/sava"
         credentials {
-            username = githubUsername
-            password = githubToken
+            username = GITHUB_USERNAME
+            password = GITHUB_TOKEN
         }
     }
     maven {
         url = "https://maven.pkg.github.com/comodal/json-iterator"
         credentials {
-            username = githubUsername
-            password = githubToken
+            username = GITHUB_USERNAME
+            password = GITHUB_TOKEN
         }
     }
 }
@@ -77,6 +78,7 @@ dependencies {
     // Solana Sava dependencies
     implementation "software.sava:sava-rpc:$SAVA_VERSION"
     implementation "software.sava:sava-core:$SAVA_VERSION"
+    implementation "software.sava:solana-programs:$SOLANA_PROGRAMS_VERSION"
 
     // ExchangePort dependencies
     implementation group: 'com.bookmap', name: 'exchange-port', version: '0.6.26'
