@@ -2,10 +2,16 @@ package com.crypto.arbitrage.providers.orc;
 
 import com.crypto.arbitrage.providers.orc.model.OrcAllPoolsInfoResp;
 import com.crypto.arbitrage.providers.orc.model.OrcPoolInfoResp;
+
+import java.math.BigDecimal;
+import java.net.http.HttpClient;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,13 +22,20 @@ import software.sava.core.accounts.PublicKey;
 import software.sava.core.accounts.Signer;
 import software.sava.core.accounts.lookup.AddressLookupTable;
 import software.sava.core.accounts.meta.AccountMeta;
+import software.sava.core.encoding.Base58;
 import software.sava.core.tx.Instruction;
 import software.sava.core.tx.Transaction;
+import software.sava.rpc.json.http.SolanaNetwork;
 import software.sava.rpc.json.http.client.SolanaRpcClient;
+import software.sava.rpc.json.http.response.Lamports;
+import software.sava.rpc.json.http.response.LatestBlockHash;
 import software.sava.rpc.json.http.response.TxSimulation;
 import software.sava.solana.programs.clients.NativeProgramAccountClient;
 import software.sava.solana.programs.clients.NativeProgramClient;
 import software.sava.solana.programs.compute_budget.ComputeBudgetProgram;
+
+
+
 
 @Slf4j
 @Service
@@ -104,7 +117,7 @@ public class OrcProvider {
    */
   public String simulateSwapTransaction(long inputAmount) {
     // Простейшая логика: minOutput = 0
-    long minOutput = 0;
+    long minOutput = 1;
     byte[] swapData = createSwapInstructionData(inputAmount, minOutput);
 
     // Адрес пула SOL–USDC
@@ -154,11 +167,72 @@ public class OrcProvider {
     return "Результат симуляции транзакции: " + simulationResult;
   }
 
+  public String executeSellSolTransaction() throws Exception {
+    HttpClient httpClient = HttpClient.newHttpClient();
+    SolanaRpcClient rpcClient = SolanaRpcClient.createClient(SolanaNetwork.MAIN_NET.getEndpoint(), httpClient);
+    Signer signer = Signer.createFromPrivateKey(Base58.decode(MY_WALLET_PRIVATE_KEY));
+    PublicKey signerPubKey = signer.publicKey();
+
+    // Получаем адрес токен-аккаунта для USDC
+    PublicKey poolPubKey = PublicKey.fromBase58Encoded(SOL_USDC_POOL_ADDRESS);
+
+    // Определяем количество SOL для продажи (эквивалент $2)
+    BigDecimal amountInSol = new BigDecimal("0.02");
+    long amountInLamports = amountInSol.multiply(new BigDecimal("1000000000")).longValue();
+
+    byte[] swapData = createSwapInstructionData(amountInLamports, 0);
+
+    List<AccountMeta> accounts = new ArrayList<>();
+    accounts.add(AccountMeta.createWritableSigner(signerPubKey));  // Подписант
+    accounts.add(AccountMeta.createRead(poolPubKey));  // Пул
+    accounts.add(AccountMeta.createRead(PublicKey.fromBase58Encoded(WSOL_MINT)));  // SOL Mint
+    accounts.add(AccountMeta.createRead(PublicKey.fromBase58Encoded(USDC_MINT))); // USDC Mint
+
+
+    Instruction swapInstruction = Instruction.createInstruction(
+            PublicKey.fromBase58Encoded(ORCA_WHIRLPOOL_PROGRAM_ID),
+            accounts,
+            swapData
+    );
+    List<Instruction> instructions = List.of(swapInstruction);
+
+    // Создаем транзакцию
+    AccountMeta feePayer = AccountMeta.createFeePayer(signerPubKey);
+    NativeProgramClient nativeProgramClient = NativeProgramClient.createClient();
+    NativeProgramAccountClient accountClient = nativeProgramClient.createAccountClient(feePayer);
+
+
+    Transaction transaction = accountClient.createTransaction(instructions);
+
+    transaction.sign(signer);
+    CompletableFuture<LatestBlockHash> latestBlockHash = rpcClient.getLatestBlockHash();
+    LatestBlockHash latestBlockHash1 = latestBlockHash.get();
+    transaction.setRecentBlockHash(latestBlockHash1.blockHash());
+
+    byte[] blockhashBytes = Base58.decode(latestBlockHash1.blockHash());
+
+    // Отправляем транзакцию
+    try {
+
+      String transactionSignature = rpcClient.sendTransaction(transaction, signer, blockhashBytes).get();
+      System.out.println("Транзакция отправлена: " + transactionSignature);
+      return transactionSignature;
+    } catch (Exception e) {
+        System.out.println("Ошибка отправки транзакции: " + e.getMessage());
+        throw e;
+    }
+  }
+
+
+
   private byte[] createSwapInstructionData(long inputAmount, long minOutput) {
-    ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES * 2);
+    ByteBuffer buffer = ByteBuffer.allocate(1 + 8 + 8);
     buffer.order(ByteOrder.LITTLE_ENDIAN);
+
+    buffer.put((byte) 1); // Swap instruction ID (в Orca это 1)
     buffer.putLong(inputAmount);
     buffer.putLong(minOutput);
+
     return buffer.array();
   }
 }

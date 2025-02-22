@@ -34,7 +34,7 @@ public class OrcTestController {
   }
 
   @GetMapping(SIMULATE_TRANSACTION)
-  public String simulateTransaction(@RequestParam String req) {
-    return orcProvider.simulateSwapTransaction(1);
+  public String simulateTransaction(@RequestParam String req) throws Exception {
+    return orcProvider.executeSellSolTransaction();
   }
 }
