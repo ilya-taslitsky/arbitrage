@@ -18,31 +18,31 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @Slf4j
 @RestControllerAdvice
 public class RestExceptionHandler {
-  @ExceptionHandler(IllegalArgumentException.class)
-  protected ResponseEntity<Object> handleIllegalArgumentException(IllegalArgumentException e) {
-    return buildErrorResponse(HttpStatus.BAD_REQUEST, e.getMessage());
-  }
-
-  @ExceptionHandler(NotAuthorizedException.class)
-  protected ResponseEntity<Object> handleNotAuthorizedException(NotAuthorizedException e) {
-    return buildErrorResponse(HttpStatus.UNAUTHORIZED, e.getMessage());
-  }
-
-  @ExceptionHandler(IllegalStateException.class)
-  protected ResponseEntity<Object> handleIllegalStateException(IllegalStateException e) {
-    return buildErrorResponse(HttpStatus.BAD_REQUEST, e.getMessage());
-  }
-
-  @ExceptionHandler(NotFoundException.class)
-  protected ResponseEntity<Object> handleNotFoundException(NotFoundException e) {
-    return buildErrorResponse(HttpStatus.NOT_FOUND, e.getMessage());
-  }
-
-  @ExceptionHandler(InvalidDataAccessApiUsageException.class)
-  protected ResponseEntity<Object> handleInvalidDataAccessApiUsageException(
-      InvalidDataAccessApiUsageException e) {
-    return buildErrorResponse(HttpStatus.BAD_REQUEST, e.getMessage());
-  }
+//  @ExceptionHandler(IllegalArgumentException.class)
+//  protected ResponseEntity<Object> handleIllegalArgumentException(IllegalArgumentException e) {
+//    return buildErrorResponse(HttpStatus.BAD_REQUEST, e.getMessage());
+//  }
+//
+//  @ExceptionHandler(NotAuthorizedException.class)
+//  protected ResponseEntity<Object> handleNotAuthorizedException(NotAuthorizedException e) {
+//    return buildErrorResponse(HttpStatus.UNAUTHORIZED, e.getMessage());
+//  }
+//
+//  @ExceptionHandler(IllegalStateException.class)
+//  protected ResponseEntity<Object> handleIllegalStateException(IllegalStateException e) {
+//    return buildErrorResponse(HttpStatus.BAD_REQUEST, e.getMessage());
+//  }
+//
+//  @ExceptionHandler(NotFoundException.class)
+//  protected ResponseEntity<Object> handleNotFoundException(NotFoundException e) {
+//    return buildErrorResponse(HttpStatus.NOT_FOUND, e.getMessage());
+//  }
+//
+//  @ExceptionHandler(InvalidDataAccessApiUsageException.class)
+//  protected ResponseEntity<Object> handleInvalidDataAccessApiUsageException(
+//      InvalidDataAccessApiUsageException e) {
+//    return buildErrorResponse(HttpStatus.BAD_REQUEST, e.getMessage());
+//  }
 
   @ExceptionHandler(MethodArgumentNotValidException.class)
   public ResponseEntity<Object> handleValidationExceptions(MethodArgumentNotValidException ex) {

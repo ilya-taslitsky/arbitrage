@@ -1,6 +1,10 @@
 package com.crypto.arbitrage.providers.orc.model.transaction;
 
 import java.math.BigInteger;
+import java.util.ArrayList;
+import java.util.List;
+
+import com.crypto.arbitrage.providers.orc.model.RewardInfo;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -24,4 +28,5 @@ public class OrcWhirlpool {
   public String tokenMintB;
   public String tokenVaultB;
   public BigInteger feeGrowthGlobalB;
+  public List<RewardInfo> rewardInfos = new ArrayList<>();
 }

@@ -1,5 +1,6 @@
 package com.crypto.arbitrage.providers.orc.util;
 
+import com.crypto.arbitrage.providers.orc.model.RewardInfo;
 import com.crypto.arbitrage.providers.orc.model.transaction.OrcWhirlpool;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
@@ -7,6 +8,7 @@ import java.nio.ByteOrder;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import software.sava.core.accounts.PublicKey;
+import software.sava.core.encoding.Base58;
 import software.sava.rpc.json.http.client.SolanaRpcClient;
 
 @Component
@@ -24,53 +26,96 @@ public class OrcWhirlpoolFetcher {
   public OrcWhirlpool fetchWhirlpool(String poolAddress) throws Exception {
     PublicKey poolKey = PublicKey.fromBase58Encoded(poolAddress);
     var accountInfo = rpcClient.getAccountInfo(poolKey).join();
-    if (accountInfo == null) {
-      throw new Exception("Pool not found");
+    if (accountInfo == null || accountInfo.data() == null) {
+      throw new Exception("Pool not found or no data available.");
     }
+
     byte[] data = accountInfo.data();
     ByteBuffer buffer = ByteBuffer.wrap(data);
     buffer.order(ByteOrder.LITTLE_ENDIAN);
 
     OrcWhirlpool pool = new OrcWhirlpool();
 
-    // Example deserialization – adjust each field per the official layout!
-    // For instance, assume:
-    // - Bytes [0,32): whirlpoolsConfig (public key)
-    byte[] configBytes = new byte[32];
-    buffer.get(configBytes);
-    pool.setWhirlpoolsConfig(PublicKey.createPubKey(configBytes).toBase58());
+    // 🟢 1️⃣ Parse `whirlpoolsConfig` (PublicKey)
+    pool.setWhirlpoolsConfig(readPublicKey(buffer));
 
-    // - Byte 32: whirlpoolBump
+    //  Parse `whirlpoolBump` (1 byte)
     pool.setWhirlpoolBump(buffer.get());
 
-    // - Bytes 33-34: tickSpacing (unsigned short)
+    //  Parse `tickSpacing` (2 bytes, unsigned short)
     pool.setTickSpacing(Short.toUnsignedInt(buffer.getShort()));
 
-    // - Bytes 35-50: liquidity (16 bytes, BigInteger, unsigned)
-    byte[] liquidityBytes = new byte[16];
-    buffer.get(liquidityBytes);
-    pool.setLiquidity(new BigInteger(1, liquidityBytes));
+    //  Parse `liquidity` (16 bytes, BigInteger)
+    pool.setLiquidity(readBigInteger(buffer, 16));
 
-    // - Bytes 51-66: sqrtPrice (16 bytes, BigInteger)
-    byte[] sqrtPriceBytes = new byte[16];
-    buffer.get(sqrtPriceBytes);
-    pool.setSqrtPrice(new BigInteger(1, sqrtPriceBytes));
+    // Parse `sqrtPrice` (16 bytes, BigInteger)
+    pool.setSqrtPrice(readBigInteger(buffer, 16));
 
-    // - Next 4 bytes: tickCurrentIndex (int)
+    // Parse `tickCurrentIndex` (4 bytes, int)
     pool.setTickCurrentIndex(buffer.getInt());
 
-    // - Next 8 bytes each for feeGrowthGlobalA and feeGrowthGlobalB (BigInteger)
-    byte[] feeGrowthABytes = new byte[8];
-    buffer.get(feeGrowthABytes);
-    pool.setFeeGrowthGlobalA(new BigInteger(1, feeGrowthABytes));
+    //  Parse `feeGrowthGlobalA` (8 bytes, BigInteger)
+    pool.setFeeGrowthGlobalA(readBigInteger(buffer, 8));
 
-    byte[] feeGrowthBBytes = new byte[8];
-    buffer.get(feeGrowthBBytes);
-    pool.setFeeGrowthGlobalB(new BigInteger(1, feeGrowthBBytes));
+    //  Parse `feeGrowthGlobalB` (8 bytes, BigInteger)
+    pool.setFeeGrowthGlobalB(readBigInteger(buffer, 8));
 
-    // Continue parsing additional fields as required…
-    // (e.g. protocolFeeRate, tokenMintA, tokenVaultA, tokenMintB, tokenVaultB, etc.)
+    // Parse `protocolFeeRate` (1 byte, unsigned)
+    pool.setProtocolFeeRate(Byte.toUnsignedInt(buffer.get()));
+
+    // Parse `tokenMintA` (PublicKey)
+    pool.setTokenMintA(readPublicKey(buffer));
+
+    //  Parse `tokenVaultA` (PublicKey)
+    pool.setTokenVaultA(readPublicKey(buffer));
+
+    // Parse `feeGrowthGlobalA` (8 bytes, BigInteger)
+    pool.setFeeGrowthGlobalA(readBigInteger(buffer, 8));
+
+    // Parse `tokenMintB` (PublicKey)
+    pool.setTokenMintB(readPublicKey(buffer));
+
+    //  Parse `tokenVaultB` (PublicKey)
+    pool.setTokenVaultB(readPublicKey(buffer));
+
+    //  Parse `feeGrowthGlobalB` (8 bytes, BigInteger)
+    pool.setFeeGrowthGlobalB(readBigInteger(buffer, 8));
+
+    // Parse `rewardInfos` (Array of RewardInfo)
+    for (int i = 0; i < 3; i++) {
+      pool.getRewardInfos().add(readRewardInfo(buffer));
+    }
 
     return pool;
+    }
+
+
+    /**
+     * Reads a 32-byte public key from the buffer.
+     */
+  private String readPublicKey(ByteBuffer buffer) {
+    byte[] keyBytes = new byte[32];
+    buffer.get(keyBytes);
+    return PublicKey.fromBase58Encoded(Base58.encode(keyBytes)).toBase58();
+  }
+
+  /**
+   * Reads a BigInteger from the buffer with the given byte length.
+   */
+  private BigInteger readBigInteger(ByteBuffer buffer, int size) {
+    byte[] bigIntBytes = new byte[size];
+    buffer.get(bigIntBytes);
+    return new BigInteger(1, bigIntBytes);
+  }
+
+  /**
+   * Reads `RewardInfo` (32 bytes public key + 16 bytes BigInteger)
+   */
+  private RewardInfo readRewardInfo(ByteBuffer buffer) {
+    RewardInfo rewardInfo = new RewardInfo();
+    rewardInfo.setMint(readPublicKey(buffer)); // 32 bytes for mint
+    rewardInfo.setVault(readPublicKey(buffer)); // 32 bytes for vault
+    rewardInfo.setGrowthGlobal(readBigInteger(buffer, 16)); // 16 bytes
+    return rewardInfo;
   }
 }
