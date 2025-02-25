@@ -3,6 +3,7 @@ package com.crypto.arbitrage.providers.orc.test_controller;
 import com.crypto.arbitrage.providers.orc.OrcProvider;
 import com.crypto.arbitrage.providers.orc.model.OrcAllPoolsInfoResp;
 import com.crypto.arbitrage.providers.orc.model.OrcPoolInfoResp;
+import com.crypto.arbitrage.providers.orc.model.transaction.OrcSwapTransactionResult;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -34,7 +35,7 @@ public class OrcTestController {
   }
 
   @GetMapping(SIMULATE_TRANSACTION)
-  public String simulateTransaction(@RequestParam String req) throws Exception {
-    return orcProvider.executeSellSolTransaction();
+  public OrcSwapTransactionResult simulateTransaction(@RequestParam long amount) throws Exception {
+    return orcProvider.executeSwapTransaction(amount);
   }
 }
