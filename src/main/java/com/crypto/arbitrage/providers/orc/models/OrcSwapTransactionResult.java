@@ -1,18 +1,21 @@
-package com.crypto.arbitrage.providers.orc.model.transaction;
+package com.crypto.arbitrage.providers.orc.models;
 
 import java.util.List;
 import lombok.AllArgsConstructor;
-import lombok.Getter;
+import lombok.Builder;
+import lombok.Data;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
 import software.sava.core.tx.Instruction;
 
-@Getter
-@Setter
-@AllArgsConstructor
+/** Result of a swap transaction. */
+@Data
+@Builder
 @NoArgsConstructor
+@AllArgsConstructor
 public class OrcSwapTransactionResult {
   private List<Instruction> instructions;
   private String transactionSignature;
   private long tokenEstOut;
+  private boolean success;
+  private String errorMessage;
 }
