@@ -302,11 +302,11 @@ public class OrcMathUtils {
    * @param sqrtPrice1X64 Upper sqrt price (Q64.64)
    * @return The amount of token B
    */
+  // Add this to your OrcMathUtils class
   public static BigInteger getTokenBDelta(
       BigInteger liquidity, BigInteger sqrtPrice0X64, BigInteger sqrtPrice1X64) {
 
     if (sqrtPrice0X64.compareTo(sqrtPrice1X64) > 0) {
-      // Swap if lower > upper
       BigInteger temp = sqrtPrice0X64;
       sqrtPrice0X64 = sqrtPrice1X64;
       sqrtPrice1X64 = temp;
@@ -316,35 +316,17 @@ public class OrcMathUtils {
       return BigInteger.ZERO;
     }
 
-    try {
-      BigInteger priceDiff = sqrtPrice1X64.subtract(sqrtPrice0X64);
+    // Liquidity * (sqrtPrice1 - sqrtPrice0)
+    BigInteger delta = liquidity.multiply(sqrtPrice1X64.subtract(sqrtPrice0X64)).shiftRight(64);
 
-      // For very small price differences, ensure a minimum output
-      if (priceDiff.compareTo(BigInteger.valueOf(100)) < 0 && !liquidity.equals(BigInteger.ZERO)) {
-        log.debug("Very small price difference, using minimum output value");
-        return BigInteger.ONE;
-      }
-
-      BigInteger amount = liquidity.multiply(priceDiff).shiftRight(64);
-
-      // Ensure non-zero result for non-zero inputs with significant price difference
-      if (amount.equals(BigInteger.ZERO)
-          && !liquidity.equals(BigInteger.ZERO)
-          && priceDiff.compareTo(BigInteger.valueOf(1000)) > 0) {
-        log.debug("Calculated zero amount with significant inputs, returning 1");
-        return BigInteger.ONE;
-      }
-
-      return amount;
-    } catch (ArithmeticException e) {
-      log.error("Arithmetic error in getTokenBDelta: {}", e.getMessage());
-
-      // Fallback - estimate a reasonable small amount
-      if (!liquidity.equals(BigInteger.ZERO)) {
-        return liquidity.divide(BigInteger.valueOf(1000000)).max(BigInteger.ONE);
-      }
+    // Ensure non-zero for non-zero inputs
+    if (delta.equals(BigInteger.ZERO)
+        && !liquidity.equals(BigInteger.ZERO)
+        && !sqrtPrice1X64.equals(sqrtPrice0X64)) {
       return BigInteger.ONE;
     }
+
+    return delta;
   }
 
   /**

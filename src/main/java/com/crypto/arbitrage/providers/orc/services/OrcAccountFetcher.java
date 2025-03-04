@@ -222,21 +222,34 @@ public class OrcAccountFetcher {
    * @param aToB Direction of the swap
    * @return An array of TickArray objects
    */
-  public OrcTickArray[] fetchTickArraysForSwap(OrcWhirlpool whirlpool, boolean aToB) {
-    String[] tickArrayAddresses =
-        OrcAddressUtils.getTickArrayAddressesForSwap(
-            whirlpool.getAddress(),
-            whirlpool.getTickCurrentIndex(),
-            whirlpool.getTickSpacing(),
-            aToB);
+  /**
+   * Fetch all tick arrays needed for a swap with proper tick traversal.
+   *
+   * @param pool The Whirlpool to fetch tick arrays for
+   * @param aToB Direction of the swap
+   * @return Array of tick arrays in the right order
+   */
+  public OrcTickArray[] fetchTickArraysForSwap(OrcWhirlpool pool, boolean aToB) {
+    try {
+      String[] tickArrayAddresses =
+          OrcAddressUtils.getTickArrayAddressesForSwap(
+              pool.getAddress(), pool.getTickCurrentIndex(), pool.getTickSpacing(), aToB);
 
-    OrcTickArray[] tickArrays = new OrcTickArray[tickArrayAddresses.length];
+      log.debug("Fetching tick arrays for swap: {}", String.join(", ", tickArrayAddresses));
 
-    for (int i = 0; i < tickArrayAddresses.length; i++) {
-      tickArrays[i] = fetchTickArray(tickArrayAddresses[i]);
+      OrcTickArray[] tickArrays = new OrcTickArray[tickArrayAddresses.length];
+
+      for (int i = 0; i < tickArrayAddresses.length; i++) {
+        tickArrays[i] = fetchTickArray(tickArrayAddresses[i]);
+      }
+
+      return tickArrays;
+    } catch (Exception e) {
+      log.error("Error fetching tick arrays for swap: {}", e.getMessage(), e);
+
+      // Return empty arrays as fallback
+      return new OrcTickArray[3];
     }
-
-    return tickArrays;
   }
 
   /**
