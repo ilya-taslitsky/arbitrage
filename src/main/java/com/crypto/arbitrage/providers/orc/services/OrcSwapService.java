@@ -265,8 +265,7 @@ public class OrcSwapService {
    * Calculates the swap output amount using correct fixed-point math. This is the main method used
    * to calculate how much of the output token will be received for a given input amount.
    */
-  private BigInteger calculateFixedSwapOutput(
-      BigInteger amountIn, OrcWhirlpool pool, boolean aToB) {
+  public BigInteger calculateFixedSwapOutput(BigInteger amountIn, OrcWhirlpool pool, boolean aToB) {
     // Apply fee rate
     BigInteger amountInAfterFee =
         amountIn
@@ -335,8 +334,7 @@ public class OrcSwapService {
   /**
    * Calculates the input amount needed for a desired output amount. Used for exact output swaps.
    */
-  private BigInteger calculateFixedSwapInput(
-      BigInteger amountOut, OrcWhirlpool pool, boolean aToB) {
+  public BigInteger calculateFixedSwapInput(BigInteger amountOut, OrcWhirlpool pool, boolean aToB) {
     BigInteger currentSqrtPrice = pool.getSqrtPrice();
     BigInteger liquidity = pool.getLiquidity();
 
@@ -395,7 +393,7 @@ public class OrcSwapService {
   }
 
   /** Calculate the fee amount for a given input amount. */
-  private BigInteger calculateFeeAmount(BigInteger amount, int feeRate) {
+  public BigInteger calculateFeeAmount(BigInteger amount, int feeRate) {
     return amount.multiply(BigInteger.valueOf(feeRate)).divide(BigInteger.valueOf(1_000_000));
   }
 
@@ -403,7 +401,7 @@ public class OrcSwapService {
    * Creates the instruction data for a swap. This builds the binary data structure expected by the
    * Orca program.
    */
-  byte[] createSwapInstructionData(
+  public byte[] createSwapInstructionData(
       BigInteger amount,
       BigInteger otherAmountThreshold,
       BigInteger sqrtPriceLimit,
@@ -443,7 +441,7 @@ public class OrcSwapService {
    * Builds the account metas required for a swap instruction. These must be in the exact order
    * expected by the Orca program.
    */
-  List<AccountMeta> buildSwapAccounts(
+  public List<AccountMeta> buildSwapAccounts(
       String poolAddress,
       OrcWhirlpool pool,
       String userTokenAccountA,
@@ -588,6 +586,67 @@ public class OrcSwapService {
     // 9. Create and return instruction
     return Instruction.createInstruction(
         OrcConstants.WHIRLPOOL_PROGRAM_ID, accounts, instructionData);
+  }
+
+  /**
+   * Calculates a swap quote for exact input swaps. This is used by other services that need to
+   * calculate swap amounts without executing.
+   */
+  public OrcSwapQuote calculateExactInSwapQuote(
+      BigInteger amountIn, boolean aToB, int slippageToleranceBps, OrcWhirlpool pool) {
+
+    // Calculate output using the fixed swap calculation
+    BigInteger outputAmount = calculateFixedSwapOutput(amountIn, pool, aToB);
+
+    // Apply slippage to get minimum output
+    BigInteger minOutputAmount =
+        outputAmount
+            .multiply(BigInteger.valueOf(10000 - slippageToleranceBps))
+            .divide(BigInteger.valueOf(10000));
+
+    // Ensure we never return zero for minimum output
+    minOutputAmount = minOutputAmount.max(BigInteger.ONE);
+
+    // Calculate fee amount
+    BigInteger fee = calculateFeeAmount(amountIn, pool.getFeeRate());
+
+    return OrcSwapQuote.builder()
+        .tokenIn(amountIn)
+        .estimatedAmountIn(amountIn)
+        .tokenMaxIn(amountIn)
+        .estimatedAmountOut(outputAmount)
+        .tokenMinOut(minOutputAmount)
+        .fee(fee)
+        .build();
+  }
+
+  /**
+   * Calculates a swap quote for exact output swaps. This is used by other services that need to
+   * calculate swap amounts without executing.
+   */
+  public OrcSwapQuote calculateExactOutSwapQuote(
+      BigInteger amountOut, boolean aToB, int slippageToleranceBps, OrcWhirlpool pool) {
+
+    // Calculate input needed using the fixed swap calculation
+    BigInteger inputAmount = calculateFixedSwapInput(amountOut, pool, aToB);
+
+    // Apply slippage to get maximum input
+    BigInteger maxInputAmount =
+        inputAmount
+            .multiply(BigInteger.valueOf(10000 + slippageToleranceBps))
+            .divide(BigInteger.valueOf(10000));
+
+    // Calculate fee amount
+    BigInteger fee = calculateFeeAmount(inputAmount, pool.getFeeRate());
+
+    return OrcSwapQuote.builder()
+        .tokenIn(inputAmount)
+        .estimatedAmountIn(inputAmount)
+        .tokenMaxIn(maxInputAmount)
+        .estimatedAmountOut(amountOut)
+        .tokenMinOut(amountOut)
+        .fee(fee)
+        .build();
   }
 
   /**
