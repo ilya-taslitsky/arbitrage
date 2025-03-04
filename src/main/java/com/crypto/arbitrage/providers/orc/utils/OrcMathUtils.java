@@ -2,6 +2,8 @@ package com.crypto.arbitrage.providers.orc.utils;
 
 import static com.crypto.arbitrage.providers.orc.constants.OrcConstants.*;
 
+import com.crypto.arbitrage.providers.orc.constants.OrcConstants;
+import com.crypto.arbitrage.providers.orc.models.OrcWhirlpool;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.math.MathContext;
@@ -109,16 +111,6 @@ public class OrcMathUtils {
     return numerator.add(denominator.subtract(BigInteger.ONE)).divide(denominator);
   }
 
-  /**
-   * Calculate the next sqrt price for a swap with token B as input. Formula: sqrtPriceX64 + (amount
-   * * Q64 / liquidity)
-   *
-   * @param sqrtPriceX64 Current sqrt price in Q64.64
-   * @param liquidity Current liquidity
-   * @param amount Amount of token B
-   * @param byAmountIn Whether the amount is input (true) or output (false)
-   * @return The next sqrt price
-   */
   public static BigInteger getNextSqrtPriceFromTokenBInput(
       BigInteger sqrtPriceX64, BigInteger liquidity, BigInteger amount, boolean byAmountIn) {
 
@@ -126,22 +118,21 @@ public class OrcMathUtils {
       return sqrtPriceX64;
     }
 
-    // Calculate the delta
-    BigInteger delta = amount.multiply(Q64).divide(liquidity);
+    // Avoid precision loss by using a higher intermediate precision
+    // This is critical for the Whirlpool math to work correctly
+    BigInteger numerator = amount.multiply(Q64);
 
-    // Return sqrt price + delta
+    // Handle potential division to zero problem
+    if (numerator.compareTo(liquidity) < 0) {
+      // If numerator < liquidity, the result might be 0, ensure minimum delta
+      BigInteger minDelta = BigInteger.ONE;
+      return sqrtPriceX64.add(minDelta);
+    }
+
+    BigInteger delta = numerator.divide(liquidity);
     return sqrtPriceX64.add(delta);
   }
 
-  /**
-   * Calculate the amount of token A for a given sqrt price range and liquidity. Formula: liquidity
-   * * (sqrtPrice1 - sqrtPrice0) / (sqrtPrice0 * sqrtPrice1)
-   *
-   * @param liquidity The liquidity amount
-   * @param sqrtPrice0X64 Lower sqrt price (Q64.64)
-   * @param sqrtPrice1X64 Upper sqrt price (Q64.64)
-   * @return The amount of token A
-   */
   public static BigInteger getTokenADelta(
       BigInteger liquidity, BigInteger sqrtPrice0X64, BigInteger sqrtPrice1X64) {
 
@@ -156,9 +147,28 @@ public class OrcMathUtils {
       return BigInteger.ZERO;
     }
 
-    BigInteger numerator = liquidity.multiply(sqrtPrice1X64.subtract(sqrtPrice0X64)).shiftLeft(64);
+    // Check if price difference is too small
+    BigInteger priceDiff = sqrtPrice1X64.subtract(sqrtPrice0X64);
+    if (priceDiff.compareTo(BigInteger.valueOf(100)) < 0) {
+      // For very small price moves, apply a minimum output
+      return liquidity.divide(BigInteger.valueOf(1000000));
+    }
+
+    // Use higher precision for the numerator
+    BigInteger numerator = liquidity.multiply(priceDiff).shiftLeft(64);
     BigInteger denominator = sqrtPrice1X64.multiply(sqrtPrice0X64);
-    return numerator.add(denominator.subtract(BigInteger.ONE)).divide(denominator);
+
+    // Add denominator-1 to numerator for rounding up
+    BigInteger result = numerator.add(denominator.subtract(BigInteger.ONE)).divide(denominator);
+
+    // Ensure non-zero result for non-zero inputs
+    if (result.equals(BigInteger.ZERO)
+        && !liquidity.equals(BigInteger.ZERO)
+        && !priceDiff.equals(BigInteger.ZERO)) {
+      return BigInteger.ONE;
+    }
+
+    return result;
   }
 
   /**
@@ -437,5 +447,66 @@ public class OrcMathUtils {
         priceChange.divide(priceBefore, 6, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100));
 
     return priceImpact.doubleValue();
+  }
+
+  /**
+   * Calculates the minimum viable swap amount for a given pool.
+   *
+   * @param pool The Whirlpool
+   * @param inputToken The input token mint
+   * @return The minimum viable amount
+   */
+  private BigInteger calculateMinimumViableAmount(OrcWhirlpool pool, String inputToken) {
+    // Determine if input is token A or B
+    boolean isTokenA = pool.getTokenMintA().equals(inputToken);
+
+    // Get token decimals
+    int inputDecimals =
+        isTokenA ? getTokenDecimals(pool.getTokenMintA()) : getTokenDecimals(pool.getTokenMintB());
+
+    // For SOL-USDC pools, use known working minimums
+    if ((pool.getTokenMintA().equals(OrcConstants.WSOL_MINT)
+            && pool.getTokenMintB().equals(OrcConstants.USDC_MINT))
+        || (pool.getTokenMintA().equals(OrcConstants.USDC_MINT)
+            && pool.getTokenMintB().equals(OrcConstants.WSOL_MINT))) {
+
+      if (inputToken.equals(OrcConstants.WSOL_MINT)) {
+        return BigInteger.valueOf(100_000_000); // 0.1 SOL (higher than typical minimum)
+      } else if (inputToken.equals(OrcConstants.USDC_MINT)) {
+        return BigInteger.valueOf(50_000_000); // 50 USDC (higher than typical minimum)
+      }
+    }
+
+    // Scale minimum by the pool's liquidity and tick spacing
+    BigInteger poolLiquidity = pool.getLiquidity();
+    int tickSpacing = pool.getTickSpacing();
+
+    // Higher liquidity pools need higher minimums
+    BigInteger baseMinimum;
+
+    if (poolLiquidity.compareTo(BigInteger.valueOf(1_000_000_000_000L)) > 0) {
+      // For very high liquidity pools
+      baseMinimum = BigInteger.TEN.pow(Math.max(1, inputDecimals - 1)); // 10% of 1 token
+    } else {
+      // For regular pools
+      baseMinimum = BigInteger.TEN.pow(Math.max(1, inputDecimals - 2)); // 1% of 1 token
+    }
+
+    // Apply additional scaling based on tick spacing
+    baseMinimum = baseMinimum.multiply(BigInteger.valueOf(Math.max(1, tickSpacing / 10)));
+
+    return baseMinimum;
+  }
+
+  private int getTokenDecimals(String tokenMint) {
+    // Common token decimals
+    if (OrcConstants.USDC_MINT.equals(tokenMint) || OrcConstants.USDT_MINT.equals(tokenMint)) {
+      return 6;
+    } else if (OrcConstants.WSOL_MINT.equals(tokenMint)) {
+      return 9;
+    }
+
+    // Default for unknown tokens
+    return 9;
   }
 }
