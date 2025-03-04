@@ -29,7 +29,6 @@ public class OrcTestController {
 
   private final OrcWhirlpoolManagementService orcService;
 
-  /** Test endpoint for executing simple token swaps. */
   @GetMapping("/simple-swap")
   public ResponseEntity<OrcSwapTransactionResult> testSimpleSwap(
       @RequestParam(defaultValue = "1000000") long amount, // 1 USDC by default (6 decimals)

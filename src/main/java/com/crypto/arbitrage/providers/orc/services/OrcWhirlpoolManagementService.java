@@ -13,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import software.sava.core.accounts.Signer;
 import software.sava.core.encoding.Base58;
+import software.sava.core.tx.Instruction;
 
 /**
  * Integration service for managing Orca Whirlpools. This service provides high-level methods for
@@ -27,6 +28,7 @@ public class OrcWhirlpoolManagementService {
   private final OrcAccountFetcher accountFetcher;
   private final OrcSwapService swapService;
   private final OrcTokenAccountService tokenAccountService;
+  private final OrcTransactionService transactionService;
 
   /**
    * Swaps tokens in an Orca Whirlpool.
@@ -409,14 +411,24 @@ public class OrcWhirlpoolManagementService {
   private OrcSwapQuote calculateSwapQuote(
       BigInteger amount, String inputToken, OrcWhirlpool pool, boolean aToB, OrcSwapType swapType) {
 
-    // For simplicity, this uses the same logic as in SwapService
-    // but without executing the transaction
+    log.debug(
+        "Calculating swap quote - input amount: {}, token: {}, pool: {}, aToB: {}",
+        amount,
+        inputToken,
+        pool.getAddress(),
+        aToB);
+    log.debug(
+        "Pool details - liquidity: {}, sqrtPrice: {}, feeRate: {}",
+        pool.getLiquidity(),
+        pool.getSqrtPrice(),
+        pool.getFeeRate());
 
     OrcSwapQuote quote = new OrcSwapQuote();
 
     if (swapType == OrcSwapType.EXACT_IN) {
       // Apply fee rate to input amount
       BigInteger amountInAfterFee = OrcMathUtils.applyFeeRate(amount, pool.getFeeRate());
+      log.debug("Amount after fee: {}", amountInAfterFee);
 
       // Calculate next sqrt price
       BigInteger currentSqrtPrice = pool.getSqrtPrice();
@@ -428,6 +440,7 @@ public class OrcWhirlpoolManagementService {
         nextSqrtPrice =
             OrcMathUtils.getNextSqrtPriceFromTokenAInput(
                 currentSqrtPrice, pool.getLiquidity(), amountInAfterFee, true);
+        log.debug("A->B swap, next sqrt price: {}", nextSqrtPrice);
 
         amountOut =
             OrcMathUtils.getTokenBDelta(pool.getLiquidity(), nextSqrtPrice, currentSqrtPrice);
@@ -436,10 +449,13 @@ public class OrcWhirlpoolManagementService {
         nextSqrtPrice =
             OrcMathUtils.getNextSqrtPriceFromTokenBInput(
                 currentSqrtPrice, pool.getLiquidity(), amountInAfterFee, true);
+        log.debug("B->A swap, next sqrt price: {}", nextSqrtPrice);
 
         amountOut =
             OrcMathUtils.getTokenADelta(pool.getLiquidity(), currentSqrtPrice, nextSqrtPrice);
       }
+
+      log.debug("Calculated output amount: {}", amountOut);
 
       // Calculate minimum output with 0.5% slippage
       BigInteger minAmountOut =
@@ -450,12 +466,131 @@ public class OrcWhirlpoolManagementService {
       quote.setTokenMaxIn(amount);
       quote.setEstimatedAmountOut(amountOut);
       quote.setTokenMinOut(minAmountOut);
+
+      log.debug("Quote complete - estimatedOut: {}, minOut: {}", amountOut, minAmountOut);
     } else {
       // Exact output swap - simplified implementation
       throw new UnsupportedOperationException("Exact output quotes not implemented");
     }
 
     return quote;
+  }
+
+  /**
+   * Calculates the minimum viable amount for a swap in a given pool. Amounts below this threshold
+   * may produce zero output due to precision issues.
+   *
+   * @param pool The Whirlpool to check
+   * @param inputToken The input token mint
+   * @return The minimum viable amount
+   */
+  private BigInteger calculateMinimumViableAmount(OrcWhirlpool pool, String inputToken) {
+    // Get token decimals
+    int decimalsA = getTokenDecimals(pool.getTokenMintA());
+    int decimalsB = getTokenDecimals(pool.getTokenMintB());
+
+    // Determine if input is token A or B
+    boolean isTokenA = pool.getTokenMintA().equals(inputToken);
+
+    // Base minimum on token decimals (higher precision tokens need larger min amounts)
+    int decimals = isTokenA ? decimalsA : decimalsB;
+
+    // For common token pairs, use known good minimums
+    if (pool.getTokenMintA().equals(OrcConstants.WSOL_MINT)
+        && pool.getTokenMintB().equals(OrcConstants.USDC_MINT)) {
+
+      // SOL/USDC pair
+      if (isTokenA) {
+        // If input is SOL (9 decimals), minimum ~0.001 SOL
+        return BigInteger.valueOf(1_000_000); // 0.001 SOL
+      } else {
+        // If input is USDC (6 decimals), minimum ~0.1 USDC
+        return BigInteger.valueOf(100_000); // 0.1 USDC
+      }
+    }
+
+    // For other pairs, calculate based on liquidity and tick spacing
+    BigInteger baseMinimum;
+    if (pool.getLiquidity().compareTo(BigInteger.valueOf(1_000_000_000_000L)) > 0) {
+      // High liquidity pools need larger minimums
+      baseMinimum = BigInteger.TEN.pow(Math.max(1, decimals - 3)); // 0.1% of 1 token
+    } else {
+      // Lower liquidity pools can handle smaller amounts
+      baseMinimum = BigInteger.TEN.pow(Math.max(1, decimals - 4)); // 0.01% of 1 token
+    }
+
+    // Ensure minimum is at least 1000 units
+    return baseMinimum.max(BigInteger.valueOf(1000));
+  }
+
+  /**
+   * Executes an arbitrage opportunity in a single atomic transaction. This is more gas-efficient
+   * and reduces the risk of front-running.
+   *
+   * @param opportunity The arbitrage opportunity to execute
+   * @return The result of the arbitrage operation
+   */
+  public OrcArbitrageResult executeAtomicArbitrage(OrcArbitrageOpportunity opportunity) {
+    try {
+      log.info(
+          "Executing atomic arbitrage between pools {} and {}",
+          opportunity.getFirstPoolAddress(),
+          opportunity.getSecondPoolAddress());
+
+      // Create signer from private key
+      Signer signer = Signer.createFromPrivateKey(Base58.decode(MY_WALLET_PRIVATE_KEY));
+
+      // Create list of instructions
+      List<Instruction> instructions = new ArrayList<>();
+
+      // Build first swap instruction
+      Instruction firstSwapInstruction =
+          swapService.buildSwapInstruction(
+              opportunity.getFirstPoolAddress(),
+              opportunity.getInputAmount(),
+              opportunity.getInputToken(),
+              OrcSwapType.EXACT_IN,
+              50, // 0.5% slippage
+              MY_WALLET_ADDRESS,
+              signer);
+
+      instructions.add(firstSwapInstruction);
+
+      // Get token accounts
+      String intermediateTokenAccount =
+          tokenAccountService.getOrCreateTokenAccount(
+              MY_WALLET_ADDRESS, opportunity.getIntermediateToken(), signer);
+
+      // Build second swap instruction (with estimated output from first swap)
+      Instruction secondSwapInstruction =
+          swapService.buildSwapInstruction(
+              opportunity.getSecondPoolAddress(),
+              opportunity.getIntermediateAmount(),
+              opportunity.getIntermediateToken(),
+              OrcSwapType.EXACT_IN,
+              50, // 0.5% slippage
+              MY_WALLET_ADDRESS,
+              signer);
+
+      instructions.add(secondSwapInstruction);
+
+      // Execute as a single transaction
+      String txSignature = transactionService.sendTransaction(instructions, signer);
+
+      // Return result
+      return OrcArbitrageResult.builder()
+          .success(true)
+          .firstTransactionSignature(txSignature)
+          .resultMessage("Executed atomic arbitrage transaction")
+          .build();
+
+    } catch (Exception e) {
+      log.error("Error executing atomic arbitrage: {}", e.getMessage(), e);
+      return OrcArbitrageResult.builder()
+          .success(false)
+          .resultMessage("Error: " + e.getMessage())
+          .build();
+    }
   }
 
   /** Optimizes the amount for an arbitrage opportunity. */
@@ -501,5 +636,67 @@ public class OrcWhirlpoolManagementService {
 
     // Default for unknown tokens
     return 9;
+  }
+
+  // In your OrcWhirlpoolService/OrcWhirlpoolManagementService class
+  public OrcArbitrageOpportunity findOptimalArbitrageOpportunity(
+      List<String> poolAddresses, String tokenMint, int minProfitBps) {
+
+    // Get all possible pool pairs
+    List<OrcPoolPair> poolPairs = generatePoolPairs(poolAddresses);
+
+    // Store best opportunity
+    OrcArbitrageOpportunity bestOpportunity = null;
+    int highestProfitBps = 0;
+
+    // Try different input amounts to find optimal
+    BigInteger[] amountsToTry = {
+      BigInteger.valueOf(1_000_000), // 1 USDC
+      BigInteger.valueOf(10_000_000), // 10 USDC
+      BigInteger.valueOf(100_000_000), // 100 USDC
+      BigInteger.valueOf(1_000_000_000) // 1000 USDC
+    };
+
+    for (OrcPoolPair pair : poolPairs) {
+      for (BigInteger amount : amountsToTry) {
+        OrcArbitrageOpportunity opp =
+            checkArbitrageForPoolPair(pair.getFirstPool(), pair.getSecondPool(), amount, tokenMint);
+
+        if (opp != null && opp.getProfitBasisPoints() > highestProfitBps) {
+          bestOpportunity = opp;
+          highestProfitBps = opp.getProfitBasisPoints();
+        }
+      }
+    }
+
+    // Only return if we meet the minimum profit threshold
+    if (bestOpportunity != null && bestOpportunity.getProfitBasisPoints() >= minProfitBps) {
+      return bestOpportunity;
+    }
+
+    return null;
+  }
+
+  /**
+   * Generates all possible pairs of pools from a list of pool addresses.
+   *
+   * @param poolAddresses List of pool addresses
+   * @return List of pool pairs
+   */
+  List<OrcPoolPair> generatePoolPairs(List<String> poolAddresses) {
+    List<OrcPoolPair> poolPairs = new ArrayList<>();
+
+    // Generate all possible pairs
+    for (int i = 0; i < poolAddresses.size(); i++) {
+      for (int j = i + 1; j < poolAddresses.size(); j++) {
+        poolPairs.add(
+            OrcPoolPair.builder()
+                .firstPool(poolAddresses.get(i))
+                .secondPool(poolAddresses.get(j))
+                .build());
+      }
+    }
+
+    return poolPairs;
   }
 }

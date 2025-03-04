@@ -178,7 +178,7 @@ public class OrcSwapService {
   }
 
   /** Creates the instruction data for a swap. */
-  private byte[] createSwapInstructionData(
+  byte[] createSwapInstructionData(
       BigInteger amount,
       BigInteger otherAmountThreshold,
       BigInteger sqrtPriceLimit,
@@ -209,7 +209,7 @@ public class OrcSwapService {
   }
 
   /** Builds the account metas required for a swap instruction. */
-  private List<AccountMeta> buildSwapAccounts(
+  List<AccountMeta> buildSwapAccounts(
       String poolAddress,
       OrcWhirlpool pool,
       String userTokenAccountA,
@@ -255,7 +255,7 @@ public class OrcSwapService {
   }
 
   /** Calculates a swap quote for exact input swaps. */
-  private OrcSwapQuote calculateExactInSwapQuote(
+  OrcSwapQuote calculateExactInSwapQuote(
       BigInteger amountIn, boolean aToB, int slippageToleranceBps, OrcWhirlpool pool) {
 
     // Get transfer fees if applicable
@@ -317,7 +317,7 @@ public class OrcSwapService {
   }
 
   /** Calculates a swap quote for exact output swaps. */
-  private OrcSwapQuote calculateExactOutSwapQuote(
+  OrcSwapQuote calculateExactOutSwapQuote(
       BigInteger amountOut, boolean aToB, int slippageToleranceBps, OrcWhirlpool pool) {
 
     // Get transfer fees if applicable
@@ -438,5 +438,89 @@ public class OrcSwapService {
     int length = Math.min(valueBytes.length, 16);
     System.arraycopy(valueBytes, srcPos, bytes, 16 - length, length);
     buffer.put(bytes);
+  }
+
+  /**
+   * Builds a swap instruction without executing it. This is used for building atomic transactions.
+   *
+   * @param poolAddress The address of the pool
+   * @param amount The amount to swap
+   * @param inputMint The input token mint
+   * @param swapType The type of swap
+   * @param slippageToleranceBps Slippage tolerance in basis points
+   * @param walletAddress The wallet address
+   * @param signer The transaction signer
+   * @return The swap instruction
+   * @throws Exception If there's an error building the instruction
+   */
+  public Instruction buildSwapInstruction(
+      String poolAddress,
+      BigInteger amount,
+      String inputMint,
+      OrcSwapType swapType,
+      int slippageToleranceBps,
+      String walletAddress,
+      Signer signer)
+      throws Exception {
+
+    log.info("Building swap instruction for pool {} with amount {}", poolAddress, amount);
+
+    // 1. Fetch the pool data
+    OrcWhirlpool pool = accountFetcher.fetchWhirlpool(poolAddress);
+
+    // Check pool liquidity
+    if (pool.getLiquidity().equals(BigInteger.ZERO)) {
+      throw new Exception("Pool has zero liquidity");
+    }
+
+    // 2. Determine swap direction (A→B or B→A)
+    boolean isInputTokenA = pool.getTokenMintA().equals(inputMint);
+    boolean aToB = (swapType == OrcSwapType.EXACT_IN) == isInputTokenA;
+
+    // 3. Get token accounts
+    String userTokenAccountA =
+        tokenAccountService.getOrCreateTokenAccount(walletAddress, pool.getTokenMintA(), signer);
+    String userTokenAccountB =
+        tokenAccountService.getOrCreateTokenAccount(walletAddress, pool.getTokenMintB(), signer);
+
+    // 4. Get tick arrays for the swap
+    String[] tickArrayAddresses =
+        OrcAddressUtils.getTickArrayAddressesForSwap(
+            poolAddress, pool.getTickCurrentIndex(), pool.getTickSpacing(), aToB);
+
+    // 5. Calculate the swap quote
+    OrcSwapQuote quote;
+    if (swapType == OrcSwapType.EXACT_IN) {
+      quote = calculateExactInSwapQuote(amount, aToB, slippageToleranceBps, pool);
+    } else {
+      quote = calculateExactOutSwapQuote(amount, aToB, slippageToleranceBps, pool);
+    }
+
+    // 6. Build swap instruction data
+    byte[] instructionData =
+        createSwapInstructionData(
+            amount,
+            swapType == OrcSwapType.EXACT_IN ? quote.getTokenMinOut() : quote.getTokenMaxIn(),
+            BigInteger.ZERO, // No price limit
+            swapType == OrcSwapType.EXACT_IN,
+            aToB);
+
+    // 7. Get oracle address
+    String oracleAddress = OrcAddressUtils.getOracleAddress(poolAddress);
+
+    // 8. Build accounts for the instruction
+    List<AccountMeta> accounts =
+        buildSwapAccounts(
+            poolAddress,
+            pool,
+            userTokenAccountA,
+            userTokenAccountB,
+            tickArrayAddresses,
+            oracleAddress,
+            walletAddress);
+
+    // 9. Create and return instruction
+    return Instruction.createInstruction(
+        OrcConstants.WHIRLPOOL_PROGRAM_ID, accounts, instructionData);
   }
 }

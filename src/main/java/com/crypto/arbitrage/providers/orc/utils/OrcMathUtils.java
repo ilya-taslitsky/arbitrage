@@ -411,4 +411,31 @@ public class OrcMathUtils {
 
     return tickIndex;
   }
+
+  // Add to your OrcMathUtils or OrcSwapService
+  public double calculatePriceImpact(
+      BigInteger inputAmount,
+      BigInteger outputAmount,
+      BigInteger sqrtPriceBefore,
+      BigInteger sqrtPriceAfter,
+      boolean aToB) {
+
+    // Convert sqrt prices to regular prices
+    BigDecimal priceBefore =
+        new BigDecimal(sqrtPriceBefore)
+            .multiply(new BigDecimal(sqrtPriceBefore))
+            .divide(new BigDecimal(Q64).multiply(new BigDecimal(Q64)), 10, RoundingMode.HALF_UP);
+
+    BigDecimal priceAfter =
+        new BigDecimal(sqrtPriceAfter)
+            .multiply(new BigDecimal(sqrtPriceAfter))
+            .divide(new BigDecimal(Q64).multiply(new BigDecimal(Q64)), 10, RoundingMode.HALF_UP);
+
+    // Calculate percentage change
+    BigDecimal priceChange = priceAfter.subtract(priceBefore).abs();
+    BigDecimal priceImpact =
+        priceChange.divide(priceBefore, 6, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100));
+
+    return priceImpact.doubleValue();
+  }
 }
