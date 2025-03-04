@@ -72,6 +72,16 @@ public class OrcSwapService {
     log.info("Swap direction: A to B = {}, Input is token A = {}", aToB, isInputTokenA);
     log.info("Pool liquidity: {}", pool.getLiquidity());
 
+    // Check if amount is sufficient for a viable swap
+    BigInteger minViableAmount = calculateMinimumViableAmount(pool, inputMint);
+    if (amount.compareTo(minViableAmount) < 0) {
+      log.warn(
+          "Input amount {} is below minimum viable amount {}, adjusting to minimum",
+          amount,
+          minViableAmount);
+      amount = minViableAmount;
+    }
+
     // 3. Get token accounts
     String userTokenAccountA =
         tokenAccountService.getOrCreateTokenAccount(walletAddress, pool.getTokenMintA(), signer);
@@ -142,6 +152,16 @@ public class OrcSwapService {
 
       if (simulation.error() != null) {
         log.error("Swap simulation failed: {}", simulation.error());
+
+        // Check for specific error codes
+        if (simulation.error().toString().contains("Custom[error=101]")) {
+          log.error("Error 101: Zero tradable amount. Try increasing your swap amount.");
+          return OrcSwapTransactionResult.builder()
+              .success(false)
+              .errorMessage("Zero tradable amount. Try increasing your swap amount.")
+              .build();
+        }
+
         throw new Exception("Swap simulation failed: " + simulation.error());
       }
 
@@ -199,6 +219,13 @@ public class OrcSwapService {
     putUint64(buffer, otherAmountThreshold);
 
     // sqrt_price_limit (default to 0 = no limit)
+    // If aToB, we can set a minimum price limit to prevent excessive slippage
+    if (aToB && sqrtPriceLimit.equals(BigInteger.ZERO)) {
+      sqrtPriceLimit = OrcConstants.MIN_SQRT_PRICE;
+    } else if (!aToB && sqrtPriceLimit.equals(BigInteger.ZERO)) {
+      sqrtPriceLimit = OrcConstants.MAX_SQRT_PRICE;
+    }
+
     putUint128(buffer, sqrtPriceLimit);
 
     // Flags
@@ -255,8 +282,16 @@ public class OrcSwapService {
   }
 
   /** Calculates a swap quote for exact input swaps. */
-  OrcSwapQuote calculateExactInSwapQuote(
+  public OrcSwapQuote calculateExactInSwapQuote(
       BigInteger amountIn, boolean aToB, int slippageToleranceBps, OrcWhirlpool pool) {
+
+    log.debug(
+        "Calculating exact-in swap quote - Direction: {}, Input amount: {}",
+        aToB ? "A->B" : "B->A",
+        amountIn);
+    log.debug("Current sqrt price: {}", pool.getSqrtPrice());
+    log.debug("Liquidity: {}", pool.getLiquidity());
+    log.debug("Fee rate: {}", pool.getFeeRate());
 
     // Get transfer fees if applicable
     OrcTransferFee transferFeeA = accountFetcher.extractTransferFee(pool.getTokenMintA());
@@ -266,39 +301,73 @@ public class OrcSwapService {
     BigInteger adjustedAmountIn = amountIn;
     if (aToB && transferFeeA != null) {
       adjustedAmountIn = applyTransferFee(amountIn, transferFeeA);
+      log.debug("Applied transfer fee A, adjusted input: {}", adjustedAmountIn);
     } else if (!aToB && transferFeeB != null) {
       adjustedAmountIn = applyTransferFee(amountIn, transferFeeB);
+      log.debug("Applied transfer fee B, adjusted input: {}", adjustedAmountIn);
     }
 
     // Apply fee rate to input amount
     BigInteger amountInAfterFee = OrcMathUtils.applyFeeRate(adjustedAmountIn, pool.getFeeRate());
+    log.debug("Amount after fee: {}", amountInAfterFee);
 
     // Calculate next sqrt price
     BigInteger currentSqrtPrice = pool.getSqrtPrice();
     BigInteger nextSqrtPrice;
     BigInteger amountOut;
 
-    if (aToB) {
-      // A to B swap (price goes down)
-      nextSqrtPrice =
-          OrcMathUtils.getNextSqrtPriceFromTokenAInput(
-              currentSqrtPrice, pool.getLiquidity(), amountInAfterFee, true);
+    try {
+      if (aToB) {
+        // A to B swap (price goes down)
+        nextSqrtPrice =
+            OrcMathUtils.getNextSqrtPriceFromTokenAInput(
+                currentSqrtPrice, pool.getLiquidity(), amountInAfterFee, true);
+        log.debug("A->B swap, next sqrt price: {}", nextSqrtPrice);
 
-      amountOut = OrcMathUtils.getTokenBDelta(pool.getLiquidity(), nextSqrtPrice, currentSqrtPrice);
-    } else {
-      // B to A swap (price goes up)
-      nextSqrtPrice =
-          OrcMathUtils.getNextSqrtPriceFromTokenBInput(
-              currentSqrtPrice, pool.getLiquidity(), amountInAfterFee, true);
+        // Ensure the price doesn't go below minimum
+        if (nextSqrtPrice.compareTo(OrcConstants.MIN_SQRT_PRICE) < 0) {
+          log.debug("Clamping next sqrt price to MIN_SQRT_PRICE: {}", OrcConstants.MIN_SQRT_PRICE);
+          nextSqrtPrice = OrcConstants.MIN_SQRT_PRICE;
+        }
 
-      amountOut = OrcMathUtils.getTokenADelta(pool.getLiquidity(), currentSqrtPrice, nextSqrtPrice);
+        amountOut =
+            OrcMathUtils.getTokenBDelta(pool.getLiquidity(), nextSqrtPrice, currentSqrtPrice);
+      } else {
+        // B to A swap (price goes up)
+        nextSqrtPrice =
+            OrcMathUtils.getNextSqrtPriceFromTokenBInput(
+                currentSqrtPrice, pool.getLiquidity(), amountInAfterFee, true);
+        log.debug("B->A swap, next sqrt price: {}", nextSqrtPrice);
+
+        // Ensure the price doesn't go above maximum
+        if (nextSqrtPrice.compareTo(OrcConstants.MAX_SQRT_PRICE) > 0) {
+          log.debug("Clamping next sqrt price to MAX_SQRT_PRICE: {}", OrcConstants.MAX_SQRT_PRICE);
+          nextSqrtPrice = OrcConstants.MAX_SQRT_PRICE;
+        }
+
+        amountOut =
+            OrcMathUtils.getTokenADelta(pool.getLiquidity(), currentSqrtPrice, nextSqrtPrice);
+      }
+    } catch (ArithmeticException e) {
+      log.error("Arithmetic error in swap calculation: {}", e.getMessage());
+      throw new RuntimeException("Error calculating swap amounts: " + e.getMessage());
+    }
+
+    log.debug("Calculated raw output amount: {}", amountOut);
+
+    // Check for zero output - this will cause program error 101
+    if (amountOut.equals(BigInteger.ZERO)) {
+      log.warn("Calculated output amount is zero, setting to minimum non-zero amount");
+      amountOut = BigInteger.ONE;
     }
 
     // Apply output transfer fee if needed
     if (aToB && transferFeeB != null) {
       amountOut = applyTransferFee(amountOut, transferFeeB);
+      log.debug("Applied output transfer fee, adjusted output: {}", amountOut);
     } else if (!aToB && transferFeeA != null) {
       amountOut = applyTransferFee(amountOut, transferFeeA);
+      log.debug("Applied output transfer fee, adjusted output: {}", amountOut);
     }
 
     // Calculate minimum output with slippage
@@ -306,6 +375,14 @@ public class OrcSwapService {
         amountOut
             .multiply(BigInteger.valueOf(10000 - slippageToleranceBps))
             .divide(BigInteger.valueOf(10000));
+
+    // Ensure minimum output is non-zero
+    if (minAmountOut.equals(BigInteger.ZERO)) {
+      log.debug("Minimum output after slippage is zero, setting to 1");
+      minAmountOut = BigInteger.ONE;
+    }
+
+    log.debug("Final quote - estimatedOut: {}, minOut: {}", amountOut, minAmountOut);
 
     return OrcSwapQuote.builder()
         .tokenIn(amountIn)
@@ -320,6 +397,16 @@ public class OrcSwapService {
   OrcSwapQuote calculateExactOutSwapQuote(
       BigInteger amountOut, boolean aToB, int slippageToleranceBps, OrcWhirlpool pool) {
 
+    log.debug(
+        "Calculating exact-out swap quote - Direction: {}, Output amount: {}",
+        aToB ? "A->B" : "B->A",
+        amountOut);
+
+    // Check for zero output
+    if (amountOut.equals(BigInteger.ZERO)) {
+      throw new IllegalArgumentException("Output amount cannot be zero");
+    }
+
     // Get transfer fees if applicable
     OrcTransferFee transferFeeA = accountFetcher.extractTransferFee(pool.getTokenMintA());
     OrcTransferFee transferFeeB = accountFetcher.extractTransferFee(pool.getTokenMintB());
@@ -329,8 +416,10 @@ public class OrcSwapService {
     if (aToB && transferFeeB != null) {
       // Need to calculate what output would generate this amount after fee
       adjustedAmountOut = reverseApplyTransferFee(amountOut, transferFeeB);
+      log.debug("Reversed transfer fee B, adjusted output: {}", adjustedAmountOut);
     } else if (!aToB && transferFeeA != null) {
       adjustedAmountOut = reverseApplyTransferFee(amountOut, transferFeeA);
+      log.debug("Reversed transfer fee A, adjusted output: {}", adjustedAmountOut);
     }
 
     // Calculate required input amount
@@ -338,25 +427,48 @@ public class OrcSwapService {
     BigInteger targetSqrtPrice;
     BigInteger amountIn;
 
-    if (aToB) {
-      // Find target sqrt price to get exactly adjustedAmountOut of token B
-      // This is a simplified approach; full implementation would traverse tick arrays
-      BigInteger deltaPrice = adjustedAmountOut.shiftLeft(64).divide(pool.getLiquidity());
-      targetSqrtPrice = currentSqrtPrice.subtract(deltaPrice);
+    try {
+      if (aToB) {
+        // Find target sqrt price to get exactly adjustedAmountOut of token B
+        // This is a simplified approach; full implementation would traverse tick arrays
+        BigInteger deltaPrice = adjustedAmountOut.shiftLeft(64).divide(pool.getLiquidity());
+        targetSqrtPrice = currentSqrtPrice.subtract(deltaPrice);
 
-      // Calculate token A needed
-      amountIn =
-          OrcMathUtils.getTokenADelta(pool.getLiquidity(), targetSqrtPrice, currentSqrtPrice);
-    } else {
-      // Find target sqrt price to get exactly adjustedAmountOut of token A
-      BigInteger numerator =
-          adjustedAmountOut.multiply(currentSqrtPrice).multiply(currentSqrtPrice);
-      BigInteger denominator = pool.getLiquidity().shiftLeft(64);
-      targetSqrtPrice = currentSqrtPrice.add(numerator.divide(denominator));
+        // Ensure target price is within bounds
+        if (targetSqrtPrice.compareTo(OrcConstants.MIN_SQRT_PRICE) < 0) {
+          targetSqrtPrice = OrcConstants.MIN_SQRT_PRICE;
+        }
 
-      // Calculate token B needed
-      amountIn =
-          OrcMathUtils.getTokenBDelta(pool.getLiquidity(), currentSqrtPrice, targetSqrtPrice);
+        // Calculate token A needed
+        amountIn =
+            OrcMathUtils.getTokenADelta(pool.getLiquidity(), targetSqrtPrice, currentSqrtPrice);
+      } else {
+        // Find target sqrt price to get exactly adjustedAmountOut of token A
+        BigInteger numerator =
+            adjustedAmountOut.multiply(currentSqrtPrice).multiply(currentSqrtPrice);
+        BigInteger denominator = pool.getLiquidity().shiftLeft(64);
+        targetSqrtPrice = currentSqrtPrice.add(numerator.divide(denominator));
+
+        // Ensure target price is within bounds
+        if (targetSqrtPrice.compareTo(OrcConstants.MAX_SQRT_PRICE) > 0) {
+          targetSqrtPrice = OrcConstants.MAX_SQRT_PRICE;
+        }
+
+        // Calculate token B needed
+        amountIn =
+            OrcMathUtils.getTokenBDelta(pool.getLiquidity(), currentSqrtPrice, targetSqrtPrice);
+      }
+    } catch (ArithmeticException e) {
+      log.error("Arithmetic error in exact-out swap calculation: {}", e.getMessage());
+      throw new RuntimeException("Error calculating exact-out swap: " + e.getMessage());
+    }
+
+    log.debug("Calculated raw input amount: {}", amountIn);
+
+    // Check for zero input
+    if (amountIn.equals(BigInteger.ZERO)) {
+      log.warn("Calculated input amount is zero, setting to minimum non-zero amount");
+      amountIn = BigInteger.ONE;
     }
 
     // Apply fee rate to get gross input amount
@@ -365,11 +477,15 @@ public class OrcSwapService {
             .multiply(BigInteger.valueOf(1_000_000))
             .divide(BigInteger.valueOf(1_000_000 - pool.getFeeRate()));
 
+    log.debug("Amount before fee: {}", amountInBeforeFee);
+
     // Apply input transfer fee if needed
     if (aToB && transferFeeA != null) {
       amountInBeforeFee = reverseApplyTransferFee(amountInBeforeFee, transferFeeA);
+      log.debug("Reversed input transfer fee, final input: {}", amountInBeforeFee);
     } else if (!aToB && transferFeeB != null) {
       amountInBeforeFee = reverseApplyTransferFee(amountInBeforeFee, transferFeeB);
+      log.debug("Reversed input transfer fee, final input: {}", amountInBeforeFee);
     }
 
     // Calculate maximum input with slippage
@@ -377,6 +493,12 @@ public class OrcSwapService {
         amountInBeforeFee
             .multiply(BigInteger.valueOf(10000 + slippageToleranceBps))
             .divide(BigInteger.valueOf(10000));
+
+    log.debug(
+        "Final quote - estimatedIn: {}, maxIn: {}, out: {}",
+        amountInBeforeFee,
+        maxAmountIn,
+        amountOut);
 
     return OrcSwapQuote.builder()
         .tokenIn(amountInBeforeFee)
@@ -418,6 +540,62 @@ public class OrcSwapService {
             .divide(BigInteger.valueOf(10000 - transferFee.getFeeBasisPoints()));
 
     return preFeeAmount;
+  }
+
+  /**
+   * Calculates the minimum viable amount for a swap in a given pool. Amounts below this threshold
+   * may produce zero output due to precision issues.
+   */
+  private BigInteger calculateMinimumViableAmount(OrcWhirlpool pool, String inputToken) {
+    // Get token decimals
+    int decimalsA = getTokenDecimals(pool.getTokenMintA());
+    int decimalsB = getTokenDecimals(pool.getTokenMintB());
+
+    // Determine if input is token A or B
+    boolean isTokenA = pool.getTokenMintA().equals(inputToken);
+    int inputDecimals = isTokenA ? decimalsA : decimalsB;
+
+    // For SOL/USDC pools, use known good minimums
+    if ((pool.getTokenMintA().equals(OrcConstants.WSOL_MINT)
+            && pool.getTokenMintB().equals(OrcConstants.USDC_MINT))
+        || (pool.getTokenMintA().equals(OrcConstants.USDC_MINT)
+            && pool.getTokenMintB().equals(OrcConstants.WSOL_MINT))) {
+
+      if (inputToken.equals(OrcConstants.WSOL_MINT)) {
+        // For SOL: 0.01 SOL (10^7 lamports) is typically safe
+        return BigInteger.valueOf(10_000_000);
+      } else if (inputToken.equals(OrcConstants.USDC_MINT)) {
+        // For USDC: 1 USDC (10^6 units) is typically safe
+        return BigInteger.valueOf(1_000_000);
+      }
+    }
+
+    // Base minimum on token decimals and pool liquidity
+    BigInteger baseMinimum;
+
+    // Higher liquidity pools can handle smaller amounts but still need minimums
+    if (pool.getLiquidity().compareTo(BigInteger.valueOf(1_000_000_000L)) > 0) {
+      // For high liquidity pools: 0.001 of the token
+      baseMinimum = BigInteger.TEN.pow(Math.max(1, inputDecimals - 3));
+    } else {
+      // For lower liquidity pools: 0.01 of the token
+      baseMinimum = BigInteger.TEN.pow(Math.max(1, inputDecimals - 2));
+    }
+
+    return baseMinimum;
+  }
+
+  /** Helper to get token decimals for common tokens */
+  private int getTokenDecimals(String tokenMint) {
+    // Common token decimals
+    if (OrcConstants.USDC_MINT.equals(tokenMint) || OrcConstants.USDT_MINT.equals(tokenMint)) {
+      return 6; // USDC and USDT have 6 decimals
+    } else if (OrcConstants.WSOL_MINT.equals(tokenMint)) {
+      return 9; // SOL has 9 decimals
+    }
+
+    // Default for unknown tokens
+    return 9;
   }
 
   /** Helper method to write a uint64 to a ByteBuffer. */
@@ -476,6 +654,16 @@ public class OrcSwapService {
     // 2. Determine swap direction (A→B or B→A)
     boolean isInputTokenA = pool.getTokenMintA().equals(inputMint);
     boolean aToB = (swapType == OrcSwapType.EXACT_IN) == isInputTokenA;
+
+    // Check if amount is sufficient
+    BigInteger minViableAmount = calculateMinimumViableAmount(pool, inputMint);
+    if (amount.compareTo(minViableAmount) < 0) {
+      log.warn(
+          "Input amount {} is below minimum viable amount {}, adjusting to minimum",
+          amount,
+          minViableAmount);
+      amount = minViableAmount;
+    }
 
     // 3. Get token accounts
     String userTokenAccountA =

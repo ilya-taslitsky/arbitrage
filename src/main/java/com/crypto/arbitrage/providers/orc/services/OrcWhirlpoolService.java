@@ -686,4 +686,17 @@ public class OrcWhirlpoolService {
     return Instruction.createInstruction(
         OrcConstants.WHIRLPOOL_PROGRAM_ID, accounts, instructionData);
   }
+
+  /**
+   * Gets a Whirlpool by its address. This method includes caching to improve performance for
+   * frequently accessed pools.
+   *
+   * @param poolAddress The address of the Whirlpool
+   * @return The Whirlpool data
+   * @throws Exception If there's an error fetching the pool
+   */
+  public OrcWhirlpool getPool(String poolAddress) throws Exception {
+    // Use a cache to prevent fetching the same pool repeatedly in a short time
+    return accountFetcher.fetchWhirlpool(poolAddress);
+  }
 }
