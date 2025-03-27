@@ -9,8 +9,9 @@ import lombok.Setter;
 @Setter
 @Table(name = "dex")
 public class Dex {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-    private String name;
+  @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  private Long id;
+
+  private String name;
 }
