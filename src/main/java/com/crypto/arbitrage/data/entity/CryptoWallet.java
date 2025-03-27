@@ -15,11 +15,10 @@ public class CryptoWallet {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     @OneToOne
-    @JoinColumn(name = "BLOCKCHAIN_ID", nullable = false)
+    @JoinColumn(name = "blockchain_id", nullable = false)
     private Blockchain blockchain;
     @OneToMany(mappedBy = "cryptoWallet")
     private Set<CryptoBalance> cryptoBalance;
     @Transient
-    @Column(name = "PRIVATE_KEY")
     private String privateKey;
 }

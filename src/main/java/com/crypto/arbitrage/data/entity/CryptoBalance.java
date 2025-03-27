@@ -12,15 +12,13 @@ import java.math.BigDecimal;
 @Table(name = "crypto_balance")
 public class CryptoBalance {
     @Id
-    @Column(name = "ID")
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     @ManyToOne(optional = false)
-    @JoinColumn(name = "CURRENCY_ID", nullable = false)
+    @JoinColumn(name = "currency_id", nullable = false)
     private Currency currency;
-    @Column(name = "BALANCE")
     private BigDecimal balance;
     @ManyToOne
-    @JoinColumn(name = "CRYPTO_WALLET_ID")
+    @JoinColumn(name = "crypto_wallet_id")
     private CryptoWallet cryptoWallet;
 }

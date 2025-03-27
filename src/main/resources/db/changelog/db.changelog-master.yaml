@@ -1,6 +1,6 @@
 databaseChangeLog:
   - changeSet:
-      id: init-datasources-table
+      id: init-all
       author: Vladimir
       changes:
         - createTable:

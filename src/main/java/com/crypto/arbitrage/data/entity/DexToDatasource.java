@@ -10,13 +10,12 @@ import lombok.Setter;
 @Table(name = "dex_to_datasource")
 public class DexToDatasource {
     @Id
-    @Column(name = "ID")
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     @ManyToOne
-    @JoinColumn(name = "DEX_ID")
+    @JoinColumn(name = "dex_id")
     private Dex dex;
     @ManyToOne
-    @JoinColumn(name = "DATASOURCE_ID")
+    @JoinColumn(name = "datasource_id")
     private DatasourceInfo datasourceInfo;
 }

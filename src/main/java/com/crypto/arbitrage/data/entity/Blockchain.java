@@ -11,8 +11,6 @@ import lombok.Setter;
 public class Blockchain {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "ID")
     private Long id;
-    @Column(name = "NAME")
     private String name;
 }

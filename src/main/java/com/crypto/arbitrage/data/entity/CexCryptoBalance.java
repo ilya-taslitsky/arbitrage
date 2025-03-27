@@ -15,11 +15,10 @@ public class CexCryptoBalance {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     @ManyToOne
-    @JoinColumn(name = "CURRENCY_ID", nullable = false)
+    @JoinColumn(name = "currency_id", nullable = false)
     private Currency currency;
-    @Column(name = "BALANCE")
     private BigDecimal balance;
     @ManyToOne
-    @JoinColumn(name = "CEX_ACCOUNT_ID")
+    @JoinColumn(name = "cex_account_id")
     private CexAccount cexAccount;
 }

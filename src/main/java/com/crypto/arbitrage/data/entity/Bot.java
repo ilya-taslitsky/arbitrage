@@ -12,33 +12,31 @@ import java.math.BigDecimal;
 @Table(name = "bot")
 public class Bot {
     @Id
-    @Column(name = "ID")
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    @Column(name = "ACTIVE")
     private Boolean active;
     @ManyToOne
-    @JoinColumn(name = "DEX_PAIR_ID")
+    @JoinColumn(name = "dex_pair_id")
     private CurrencyToCurrency dexPairId;
     @ManyToOne
-    @JoinColumn(name = "CEX_PAIR_ID")
+    @JoinColumn(name = "cex_pair_id")
     private CurrencyToCurrency cexPairId;
     @ManyToOne
-    @JoinColumn(name = "EXCHANGE_PAIR_ID")
+    @JoinColumn(name = "exchange_pair_id")
     private DexToDatasource exchangePairId;
-    @Column(name = "TRADING_AMOUNT")
+    @Column(name = "trading_amount")
     private BigDecimal tradingAmount;
-    @Column(name = "PROFIT_PERCENT")
+    @Column(name = "profit_percent")
     private Double profitPercent;
-    @Column(name = "SLIPPAGE_PERCENT")
+    @Column(name = "slippage_percent")
     private Double slippagePercent;
     @OneToOne
-    @JoinColumn(name = "CRYPTO_WALLET_ID")
+    @JoinColumn(name = "crypto_wallet_id")
     private CryptoWallet cryptoWallet;
     @OneToOne
-    @JoinColumn(name = "CEX_ACCOUNT_ID")
+    @JoinColumn(name = "cex_account_id")
     private CexAccount cexAccount;
     @OneToOne
-    @JoinColumn(name = "BLOCKCHAIN_ID")
+    @JoinColumn(name = "blockchain_id")
     private Blockchain blockchain;
 }

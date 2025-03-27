@@ -13,9 +13,7 @@ import java.util.Set;
 public class CexAccount {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "ID")
     private Long id;
-    @Column(name = "EXCHANGE")
     private String exchange;
     @OneToMany(mappedBy = "cexAccount")
     private Set<CexCryptoBalance> cexCryptoBalance;

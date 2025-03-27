@@ -10,10 +10,8 @@ import lombok.Setter;
 @Table(name = "currency")
 public class Currency {
     @Id
-    @Column(name = "ID")
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    @Column(name = "NAME", nullable = false, unique = true)
+    @Column(nullable = false, unique = true)
     private String name;
 }
