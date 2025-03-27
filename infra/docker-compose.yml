@@ -1,0 +1,19 @@
+name: "orc-ts-server"
+services:
+  ts-server:
+    image: normat/ts-server:latest
+    container_name: orc-ts-server
+    environment:
+      - WALLET_PRIVATE_KEY_SYSTEM=${WALLET_PRIVATE_KEY_SYSTEM}
+    ports:
+      - "3000:3000"
+    networks:
+      - orc_ts_server
+    restart: unless-stopped
+
+networks:
+  orc_ts_server:
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.25.0.0/16
