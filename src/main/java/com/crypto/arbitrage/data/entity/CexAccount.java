@@ -1,25 +1,25 @@
 package com.crypto.arbitrage.data.entity;
 
 import jakarta.persistence.*;
-import java.util.Set;
 import lombok.Getter;
 import lombok.Setter;
+
+import java.util.Set;
 
 @Entity
 @Getter
 @Setter
-@Table(name = "crypto_wallet")
-public class CryptoWallet {
+@Table(name = "cex_account")
+public class CexAccount {
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Long id;
 
-  @OneToOne
-  @JoinColumn(name = "blockchain_id", nullable = false)
-  private Blockchain blockchain;
+  private String exchange;
 
-  @OneToMany(mappedBy = "cryptoWallet")
-  private Set<CryptoBalance> cryptoBalance;
+  @OneToMany(mappedBy = "cexAccount")
+  private Set<CexCryptoBalance> cexCryptoBalance;
 
+  @Transient private String publicKey;
   @Transient private String privateKey;
 }

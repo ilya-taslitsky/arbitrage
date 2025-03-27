@@ -1,8 +1,37 @@
 databaseChangeLog:
   - changeSet:
-      id: init-datasources-table
-      author: ilya
+      id: init-all
+      author: Vladimir
       changes:
+        - createTable:
+            tableName: currency
+            columns:
+              - column:
+                  name: id
+                  type: BIGSERIAL
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: name
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+                    unique: true
+
+        - createTable:
+            tableName: blockchain
+            columns:
+              - column:
+                  name: id
+                  type: BIGSERIAL
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: name
+                  type: VARCHAR(255)
+
         - createTable:
             tableName: datasources
             columns:
@@ -25,13 +54,9 @@ databaseChangeLog:
               - column:
                   name: exchange
                   type: VARCHAR(255)
-                  constraints:
-                    nullable: true
               - column:
                   name: type
                   type: VARCHAR(255)
-                  constraints:
-                    nullable: true
               - column:
                   name: exchange_port_alias
                   type: VARCHAR(255)
@@ -40,13 +65,9 @@ databaseChangeLog:
               - column:
                   name: exchange_port_type
                   type: VARCHAR(255)
-                  constraints:
-                    nullable: true
               - column:
                   name: exchange_port_exchange
                   type: VARCHAR(255)
-                  constraints:
-                    nullable: true
               - column:
                   name: alias
                   type: VARCHAR(255)
@@ -72,3 +93,252 @@ databaseChangeLog:
                   type: DOUBLE PRECISION
                   constraints:
                     nullable: false
+
+        - createTable:
+            tableName: dex
+            columns:
+              - column:
+                  name: id
+                  type: BIGSERIAL
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: name
+                  type: VARCHAR(255)
+
+        - createTable:
+            tableName: currency_to_currency
+            columns:
+              - column:
+                  name: id
+                  type: BIGSERIAL
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: base_currency_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: quote_currency_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+        - addForeignKeyConstraint:
+            baseTableName: currency_to_currency
+            baseColumnNames: base_currency_id
+            constraintName: fk_currency_to_currency_base
+            referencedTableName: currency
+            referencedColumnNames: id
+        - addForeignKeyConstraint:
+            baseTableName: currency_to_currency
+            baseColumnNames: quote_currency_id
+            constraintName: fk_currency_to_currency_quote
+            referencedTableName: currency
+            referencedColumnNames: id
+
+        - createTable:
+            tableName: crypto_wallet
+            columns:
+              - column:
+                  name: id
+                  type: BIGSERIAL
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: blockchain_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+        - addForeignKeyConstraint:
+            baseTableName: crypto_wallet
+            baseColumnNames: blockchain_id
+            constraintName: fk_crypto_wallet_blockchain
+            referencedTableName: blockchain
+            referencedColumnNames: id
+
+        - createTable:
+            tableName: cex_account
+            columns:
+              - column:
+                  name: id
+                  type: BIGSERIAL
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: exchange
+                  type: VARCHAR(255)
+
+        - createTable:
+            tableName: crypto_balance
+            columns:
+              - column:
+                  name: id
+                  type: BIGSERIAL
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: currency_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: balance
+                  type: NUMERIC(19,4)
+              - column:
+                  name: crypto_wallet_id
+                  type: BIGINT
+        - addForeignKeyConstraint:
+            baseTableName: crypto_balance
+            baseColumnNames: currency_id
+            constraintName: fk_crypto_balance_currency
+            referencedTableName: currency
+            referencedColumnNames: id
+        - addForeignKeyConstraint:
+            baseTableName: crypto_balance
+            baseColumnNames: crypto_wallet_id
+            constraintName: fk_crypto_balance_wallet
+            referencedTableName: crypto_wallet
+            referencedColumnNames: id
+
+        - createTable:
+            tableName: cex_crypto_balance
+            columns:
+              - column:
+                  name: id
+                  type: BIGSERIAL
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: currency_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: balance
+                  type: NUMERIC(19,4)
+              - column:
+                  name: cex_account_id
+                  type: BIGINT
+        - addForeignKeyConstraint:
+            baseTableName: cex_crypto_balance
+            baseColumnNames: currency_id
+            constraintName: fk_cex_crypto_balance_currency
+            referencedTableName: currency
+            referencedColumnNames: id
+        - addForeignKeyConstraint:
+            baseTableName: cex_crypto_balance
+            baseColumnNames: cex_account_id
+            constraintName: fk_cex_crypto_balance_cex_account
+            referencedTableName: cex_account
+            referencedColumnNames: id
+
+        - createTable:
+            tableName: dex_to_datasource
+            columns:
+              - column:
+                  name: id
+                  type: BIGSERIAL
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: dex_id
+                  type: BIGINT
+              - column:
+                  name: datasource_id
+                  type: BIGINT
+        - addForeignKeyConstraint:
+            baseTableName: dex_to_datasource
+            baseColumnNames: dex_id
+            constraintName: fk_dex_to_datasource_dex
+            referencedTableName: dex
+            referencedColumnNames: id
+        - addForeignKeyConstraint:
+            baseTableName: dex_to_datasource
+            baseColumnNames: datasource_id
+            constraintName: fk_dex_to_datasource_datasource
+            referencedTableName: datasources
+            referencedColumnNames: id
+
+        - createTable:
+            tableName: bot
+            columns:
+              - column:
+                  name: id
+                  type: BIGSERIAL
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: active
+                  type: BOOLEAN
+              - column:
+                  name: dex_pair_id
+                  type: BIGINT
+              - column:
+                  name: cex_pair_id
+                  type: BIGINT
+              - column:
+                  name: exchange_pair_id
+                  type: BIGINT
+              - column:
+                  name: trading_amount
+                  type: NUMERIC(19,4)
+              - column:
+                  name: profit_percent
+                  type: DOUBLE PRECISION
+              - column:
+                  name: slippage_percent
+                  type: DOUBLE PRECISION
+              - column:
+                  name: crypto_wallet_id
+                  type: BIGINT
+              - column:
+                  name: cex_account_id
+                  type: BIGINT
+              - column:
+                  name: blockchain_id
+                  type: BIGINT
+        - addForeignKeyConstraint:
+            baseTableName: bot
+            baseColumnNames: dex_pair_id
+            constraintName: fk_bot_dex_pair
+            referencedTableName: currency_to_currency
+            referencedColumnNames: id
+        - addForeignKeyConstraint:
+            baseTableName: bot
+            baseColumnNames: cex_pair_id
+            constraintName: fk_bot_cex_pair
+            referencedTableName: currency_to_currency
+            referencedColumnNames: id
+        - addForeignKeyConstraint:
+            baseTableName: bot
+            baseColumnNames: exchange_pair_id
+            constraintName: fk_bot_exchange_pair
+            referencedTableName: dex_to_datasource
+            referencedColumnNames: id
+        - addForeignKeyConstraint:
+            baseTableName: bot
+            baseColumnNames: crypto_wallet_id
+            constraintName: fk_bot_crypto_wallet
+            referencedTableName: crypto_wallet
+            referencedColumnNames: id
+        - addForeignKeyConstraint:
+            baseTableName: bot
+            baseColumnNames: cex_account_id
+            constraintName: fk_bot_cex_account
+            referencedTableName: cex_account
+            referencedColumnNames: id
+        - addForeignKeyConstraint:
+            baseTableName: bot
+            baseColumnNames: blockchain_id
+            constraintName: fk_bot_blockchain
+            referencedTableName: blockchain
+            referencedColumnNames: id
