@@ -9,17 +9,18 @@ import java.util.Set;
 @Entity
 @Getter
 @Setter
-@Table(name = "crypto_wallet")
-public class CryptoWallet {
+@Table(name = "cex_account")
+public class CexAccount {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "ID")
     private Long id;
-    @OneToOne
-    @JoinColumn(name = "BLOCKCHAIN_ID", nullable = false)
-    private Blockchain blockchain;
-    @OneToMany(mappedBy = "cryptoWallet")
-    private Set<CryptoBalance> cryptoBalance;
+    @Column(name = "EXCHANGE")
+    private String exchange;
+    @OneToMany(mappedBy = "cexAccount")
+    private Set<CexCryptoBalance> cexCryptoBalance;
     @Transient
-    @Column(name = "PRIVATE_KEY")
+    private String publicKey;
+    @Transient
     private String privateKey;
 }
