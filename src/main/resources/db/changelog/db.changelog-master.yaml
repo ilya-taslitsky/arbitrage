@@ -345,3 +345,173 @@ databaseChangeLog:
             constraintName: fk_bot_blockchain
             referencedTableName: blockchain
             referencedColumnNames: id
+  - changeSet:
+      id: add-cex-table
+      author: Vladimir
+      changes:
+        - createTable:
+            tableName: cex
+            columns:
+              - column:
+                  name: id
+                  type: BIGSERIAL
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: name
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+  - changeSet:
+      id: add-signal-info-table
+      author: Vladimir
+      changes:
+        - createTable:
+            tableName: signal_info
+            columns:
+              - column:
+                  name: id
+                  type: BIGSERIAL
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: date
+                  type: TIMESTAMP
+              - column:
+                  name: cex_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: dex_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: profit
+                  type: DOUBLE PRECISION
+              - column:
+                  name: trading_amount
+                  type: NUMERIC(19,4)
+              - column:
+                  name: profit_percent
+                  type: DOUBLE PRECISION
+              - column:
+                  name: cex_pair_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: dex_pair_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: blockchain_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+        - addForeignKeyConstraint:
+            baseTableName: signal_info
+            baseColumnNames: cex_id
+            constraintName: fk_signal_info_cex
+            referencedTableName: cex
+            referencedColumnNames: id
+        - addForeignKeyConstraint:
+            baseTableName: signal_info
+            baseColumnNames: dex_id
+            constraintName: fk_signal_info_dex
+            referencedTableName: dex
+            referencedColumnNames: id
+        - addForeignKeyConstraint:
+            baseTableName: signal_info
+            baseColumnNames: cex_pair_id
+            constraintName: fk_signal_info_cex_pair
+            referencedTableName: currency_to_currency
+            referencedColumnNames: id
+        - addForeignKeyConstraint:
+            baseTableName: signal_info
+            baseColumnNames: dex_pair_id
+            constraintName: fk_signal_info_dex_pair
+            referencedTableName: currency_to_currency
+            referencedColumnNames: id
+        - addForeignKeyConstraint:
+            baseTableName: signal_info
+            baseColumnNames: blockchain_id
+            constraintName: fk_signal_info_blockchain
+            referencedTableName: blockchain
+            referencedColumnNames: id
+  - changeSet:
+      id: add-transaction-info-table
+      author: Vladimir
+      changes:
+        - createTable:
+            tableName: transaction_info
+            columns:
+              - column:
+                  name: id
+                  type: BIGSERIAL
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: transaction_id
+                  type: VARCHAR(255)
+              - column:
+                  name: date
+                  type: TIMESTAMP
+              - column:
+                  name: cex_pair_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: dex_pair_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: direction_dex
+                  type: VARCHAR(255)
+              - column:
+                  name: blockchain_id
+                  type: BIGINT
+              - column:
+                  name: sum_bought
+                  type: NUMERIC(19,4)
+              - column:
+                  name: sum_sold
+                  type: NUMERIC(19,4)
+              - column:
+                  name: profit
+                  type: NUMERIC(19,4)
+              - column:
+                  name: profit_percent
+                  type: DOUBLE PRECISION
+              - column:
+                  name: cex_fee
+                  type: DOUBLE PRECISION
+              - column:
+                  name: dex_fee
+                  type: DOUBLE PRECISION
+        - addForeignKeyConstraint:
+            baseTableName: transaction_info
+            baseColumnNames: cex_pair_id
+            constraintName: fk_transaction_info_cex_pair
+            referencedTableName: currency_to_currency
+            referencedColumnNames: id
+        - addForeignKeyConstraint:
+            baseTableName: transaction_info
+            baseColumnNames: dex_pair_id
+            constraintName: fk_transaction_info_dex_pair
+            referencedTableName: currency_to_currency
+            referencedColumnNames: id
+        - addForeignKeyConstraint:
+            baseTableName: transaction_info
+            baseColumnNames: blockchain_id
+            constraintName: fk_transaction_info_blockchain
+            referencedTableName: blockchain
+            referencedColumnNames: id
+
