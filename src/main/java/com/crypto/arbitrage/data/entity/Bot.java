@@ -15,6 +15,7 @@ public class Bot {
   private Long id;
 
   private Boolean active;
+  private Boolean running;
 
   @ManyToOne
   @JoinColumn(name = "dex_pair_id")
