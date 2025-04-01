@@ -280,6 +280,9 @@ databaseChangeLog:
                   name: active
                   type: BOOLEAN
               - column:
+                  name: running
+                  type: BOOLEAN
+              - column:
                   name: dex_pair_id
                   type: BIGINT
               - column:
