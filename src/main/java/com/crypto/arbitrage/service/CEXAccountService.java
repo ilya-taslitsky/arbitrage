@@ -1,4 +1,3 @@
 package com.crypto.arbitrage.service;
 
-public interface CEXAccountService {
-}
+public interface CEXAccountService {}
