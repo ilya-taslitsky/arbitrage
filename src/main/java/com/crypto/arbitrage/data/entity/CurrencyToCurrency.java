@@ -20,4 +20,8 @@ public class CurrencyToCurrency {
   @ManyToOne
   @JoinColumn(name = "quote_currency_id", nullable = false)
   private Currency quoteCurrency;
+
+  public String getPairAsString() {
+    return baseCurrency.getName() + "/" + quoteCurrency.getName();
+  }
 }

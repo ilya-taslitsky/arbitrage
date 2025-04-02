@@ -8,6 +8,4 @@ import org.springframework.stereotype.Service;
 @Service
 @Slf4j
 @RequiredArgsConstructor
-public class CEXAccountServiceImpl implements CEXAccountService {
-
-}
+public class CEXAccountServiceImpl implements CEXAccountService {}

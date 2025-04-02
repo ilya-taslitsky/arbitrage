@@ -280,6 +280,9 @@ databaseChangeLog:
                   name: active
                   type: BOOLEAN
               - column:
+                  name: running
+                  type: BOOLEAN
+              - column:
                   name: dex_pair_id
                   type: BIGINT
               - column:
@@ -342,3 +345,126 @@ databaseChangeLog:
             constraintName: fk_bot_blockchain
             referencedTableName: blockchain
             referencedColumnNames: id
+  - changeSet:
+      id: add-cex-table
+      author: Vladimir
+      changes:
+        - createTable:
+            tableName: cex
+            columns:
+              - column:
+                  name: id
+                  type: BIGSERIAL
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: name
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+  - changeSet:
+      id: add-signal-info-table
+      author: Vladimir
+      changes:
+        - createTable:
+            tableName: signal_info
+            columns:
+              - column:
+                  name: id
+                  type: BIGSERIAL
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: date
+                  type: TIMESTAMP
+              - column:
+                  name: cex_id
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: dex_id
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: profit
+                  type: DOUBLE PRECISION
+              - column:
+                  name: trading_amount
+                  type: NUMERIC(19,4)
+              - column:
+                  name: profit_percent
+                  type: DOUBLE PRECISION
+              - column:
+                  name: cex_pair
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: dex_pair
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: blockchain
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+  - changeSet:
+      id: add-transaction-info-table
+      author: Vladimir
+      changes:
+        - createTable:
+            tableName: transaction_info
+            columns:
+              - column:
+                  name: id
+                  type: BIGSERIAL
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: transaction_id
+                  type: VARCHAR(255)
+              - column:
+                  name: date
+                  type: TIMESTAMP
+              - column:
+                  name: cex_pair
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: dex_pair
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: direction_dex
+                  type: VARCHAR(255)
+              - column:
+                  name: blockchain
+                  type: VARCHAR(255)
+              - column:
+                  name: sum_bought
+                  type: NUMERIC(19,4)
+              - column:
+                  name: sum_sold
+                  type: NUMERIC(19,4)
+              - column:
+                  name: profit
+                  type: NUMERIC(19,4)
+              - column:
+                  name: profit_percent
+                  type: DOUBLE PRECISION
+              - column:
+                  name: cex_fee
+                  type: DOUBLE PRECISION
+              - column:
+                  name: dex_fee
+                  type: DOUBLE PRECISION
+
+

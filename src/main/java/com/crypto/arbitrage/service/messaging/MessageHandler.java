@@ -4,5 +4,5 @@ import com.crypto.arbitrage.data.TopicMessage;
 
 public interface MessageHandler {
 
-    void handleMessage(TopicMessage message);
+  void handleMessage(TopicMessage message);
 }
